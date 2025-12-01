@@ -1,0 +1,23 @@
+Operating System Files
+
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+Logs and Debugging
+
+.log
+npm-debug.log
+
+IDE and Editor Directories
+
+.vscode/
+.idea/
+*.swp
+*.swo
+
+Node modules (if you add build tools later)
+
+node_modules/
+dist/
+build/

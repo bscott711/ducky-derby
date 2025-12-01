@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Duck Derby Racer</title>
+    <style>
+        :root {
+            --sky-color: #87CEEB;
+            --water-color: #1E90FF;
+            --water-highlight: #00BFFF;
+            --ui-bg: rgba(255, 255, 255, 0.95);
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            background-color: var(--sky-color);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            user-select: none;
+        }
+
+        /* --- Environment --- */
+        .sky {
+            flex: 1;
+            position: relative;
+            background: linear-gradient(to bottom, #87CEEB, #E0F7FA);
+            overflow: hidden;
+        }
+
+        .cloud-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            will-change: transform;
+        }
+
+        .cloud {
+            position: absolute;
+            background: white;
+            border-radius: 50px;
+            opacity: 0.8;
+            animation: moveCloud linear infinite;
+        }
+
+        @keyframes moveCloud {
+            from { transform: translateX(110vw); }
+            to { transform: translateX(-200px); }
+        }
+
+        .water-container {
+            height: 50vh;
+            background-color: var(--water-color);
+            position: relative;
+            overflow: hidden;
+            border-top: 5px solid white;
+            box-shadow: 0 -5px 15px rgba(0,0,0,0.1);
+        }
+
+        #game-world {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 100%; 
+            will-change: transform;
+        }
+
+        /* Stylized Waves */
+        .wave {
+            position: absolute;
+            width: 200%;
+            height: 100%;
+            background-image: radial-gradient(circle at 50% 10px, rgba(255,255,255,0.2) 15px, transparent 16px);
+            background-size: 50px 30px;
+            animation: waveFlow 4s linear infinite;
+            pointer-events: none; 
+            will-change: background-position;
+        }
+
+        .wave:nth-child(2) {
+            top: 10px;
+            animation-duration: 7s;
+            opacity: 0.5;
+            left: -50px;
+        }
+
+        @keyframes waveFlow {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50px); }
+        }
+
+        .finish-line {
+            position: absolute;
+            left: 400vw; 
+            top: 0;
+            bottom: 0;
+            width: 10px;
+            background: repeating-linear-gradient(
+                45deg,
+                white,
+                white 10px,
+                black 10px,
+                black 20px
+            );
+            z-index: 5;
+            box-shadow: -2px 0 5px rgba(0,0,0,0.2);
+        }
+
+        .finish-flag {
+            position: absolute;
+            left: 400vw; 
+            margin-left: -15px;
+            top: -30px;
+            font-size: 24px;
+            z-index: 6;
+        }
+
+        /* --- Ducks --- */
+        .lane {
+            position: absolute;
+            left: 0;
+            width: 100%; 
+            height: 25%; 
+            display: flex;
+            align-items: center;
+            border-bottom: 1px dashed rgba(255,255,255,0.2);
+        }
+
+        .duck-wrapper {
+            position: absolute;
+            left: 10px; 
+            width: 80px;
+            height: 80px;
+            transition: transform 0.1s linear; 
+            z-index: 10;
+            filter: drop-shadow(2px 4px 6px rgba(0,0,0,0.3));
+        }
+
+        .duck-svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .duck-name {
+            position: absolute;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.6);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+            white-space: nowrap;
+            opacity: 0.8;
+        }
+
+        #duck-0 .duck-name {
+            top: auto;
+            bottom: -20px;
+        }
+
+        /* --- UI Overlay --- */
+        #game-ui {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.4);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            backdrop-filter: blur(2px);
+        }
+
+        .panel {
+            background: var(--ui-bg);
+            padding: 2rem;
+            border-radius: 20px;
+            text-align: center;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            max-width: 95%;
+            width: 500px;
+            border: 4px solid #fff;
+        }
+
+        h1 { margin-top: 0; color: #333; font-size: 2rem; }
+        h2 { color: #555; font-size: 1.5rem; margin: 5px 0; }
+        p { color: #666; margin-bottom: 1.5rem; }
+
+        .duck-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .bet-btn {
+            background: white;
+            border: 2px solid #ccc;
+            border-radius: 12px;
+            padding: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .bet-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            border-color: #aaa;
+        }
+
+        .bet-btn.selected {
+            border-color: #FFD700;
+            background-color: #FFFDE7;
+            box-shadow: 0 0 0 3px #FFD700;
+        }
+
+        .bet-btn svg {
+            width: 40px;
+            height: 40px;
+        }
+
+        .action-btn {
+            background: #FF8C00;
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.2rem;
+            border-radius: 30px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+            box-shadow: 0 4px 0 #E67e00;
+            margin-top: 20px;
+        }
+
+        .action-btn:hover { background: #FFA500; }
+        .action-btn:active { transform: translateY(4px); box-shadow: none; }
+        .action-btn:disabled { background: #ccc; box-shadow: none; cursor: not-allowed; }
+
+        /* --- Podium Styles --- */
+        .podium-container {
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            height: 250px;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .podium-step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            position: relative;
+            width: 80px;
+        }
+
+        .podium-duck {
+            width: 60px;
+            height: 60px;
+            margin-bottom: 10px;
+            animation: bounce 1s infinite alternate;
+        }
+        
+        .podium-bar {
+            width: 100%;
+            border-radius: 8px 8px 0 0;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            padding-bottom: 10px;
+            color: white;
+            font-weight: bold;
+            font-size: 24px;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+            box-shadow: inset 0 -10px 20px rgba(0,0,0,0.1);
+        }
+
+        /* Heights for ranks */
+        .rank-1 .podium-bar { height: 140px; background: #FFD700; order: 2; z-index: 2; }
+        .rank-2 .podium-bar { height: 100px; background: #C0C0C0; order: 1; z-index: 1; }
+        .rank-3 .podium-bar { height: 70px; background: #CD7F32; order: 3; z-index: 1; }
+        
+        /* Ordering for visual pyramid */
+        .rank-1 { order: 2; }
+        .rank-2 { order: 1; }
+        .rank-3 { order: 3; }
+
+        .user-bet-indicator {
+            position: absolute;
+            top: -30px;
+            background: #333;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 10px;
+            white-space: nowrap;
+        }
+
+        .user-bet-indicator::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-left: 4px solid transparent;
+            border-right: 4px solid transparent;
+            border-top: 4px solid #333;
+        }
+
+        @keyframes bounce {
+            from { transform: translateY(0); }
+            to { transform: translateY(-5px); }
+        }
+
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: #f00;
+            animation: fall linear forwards;
+            z-index: 50;
+        }
+
+        @keyframes fall {
+            to { transform: translateY(100vh) rotate(720deg); }
+        }
+
+        @media (max-width: 600px) {
+            .duck-wrapper { width: 60px; height: 60px; }
+            h1 { font-size: 1.5rem; }
+            .panel { padding: 1.5rem; }
+            .podium-step { width: 60px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="sky">
+        <div class="cloud-layer" id="cloud-layer">
+            <div class="cloud" style="width: 100px; height: 40px; top: 10%; animation-duration: 25s;"></div>
+            <div class="cloud" style="width: 140px; height: 50px; top: 25%; animation-duration: 35s; animation-delay: -10s;"></div>
+            <div class="cloud" style="width: 80px; height: 30px; top: 40%; animation-duration: 20s; animation-delay: -5s;"></div>
+        </div>
+    </div>
+
+    <div class="water-container" id="track">
+        <div class="wave" id="wave-1"></div>
+        <div class="wave" id="wave-2"></div>
+        
+        <div id="game-world">
+            <div class="finish-line"></div>
+            <div class="finish-flag" style="top: 20%">🏁</div>
+            <div class="finish-flag" style="top: 45%">🏁</div>
+            <div class="finish-flag" style="top: 70%">🏁</div>
+            <div class="finish-flag" style="top: 95%">🏁</div>
+            <!-- Lanes injected here -->
+        </div>
+    </div>
+
+    <!-- UI Overlay -->
+    <div id="game-ui">
+        <!-- Betting Panel -->
+        <div class="panel" id="betting-panel">
+            <h1>🦆 Duck Derby 🦆</h1>
+            <p>Who will be the champion of the pond?</p>
+            
+            <div class="duck-grid" id="duck-selection"></div>
+            <button class="action-btn" id="start-btn" disabled>Start Race!</button>
+        </div>
+
+        <!-- Results Panel with Podium -->
+        <div class="panel" id="results-panel" style="display: none;">
+            <h1 id="result-title">Race Finished!</h1>
+            <p id="result-message"></p>
+            
+            <div class="podium-container" id="podium-display">
+                <!-- Podium injected here -->
+            </div>
+
+            <button class="action-btn" onclick="resetGame()">Race Again</button>
+        </div>
+    </div>
+
+    <script>
+        // --- Configuration ---
+        const DUCK_COLORS = [
+            { name: "Sir Quacks", color: "#FFD700", body: "#FFD700", beak: "#FF8C00" }, 
+            { name: "Mallard Mike", color: "#00CED1", body: "#48D1CC", beak: "#FFD700" },   
+            { name: "Speedy", color: "#FF69B4", body: "#FF69B4", beak: "#FFC0CB" }, 
+            { name: "Darkwing", color: "#9370DB", body: "#9370DB", beak: "#4B0082" }         
+        ];
+
+        // --- State ---
+        let selectedDuckIndex = -1;
+        let isRacing = false;
+        let ducks = [];
+        let finishOrder = []; // Track order of completion
+        let animationFrameId;
+        let cameraX = 0; 
+
+        // --- Elements ---
+        const gameWorldEl = document.getElementById('game-world');
+        const cloudLayerEl = document.getElementById('cloud-layer');
+        const duckSelectionEl = document.getElementById('duck-selection');
+        const startBtn = document.getElementById('start-btn');
+        const bettingPanel = document.getElementById('betting-panel');
+        const resultsPanel = document.getElementById('results-panel');
+        const gameUI = document.getElementById('game-ui');
+        const resultTitle = document.getElementById('result-title');
+        const resultMessage = document.getElementById('result-message');
+        const podiumDisplay = document.getElementById('podium-display');
+        const waveEls = document.querySelectorAll('.wave');
+
+        // --- SVG Generator ---
+        function getDuckSVG(colorConfig) {
+            return `
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <g transform="scale(-1, 1) translate(-100, 0)">
+                    <path d="M20,60 Q20,90 50,90 L75,90 Q95,90 95,70 Q95,50 75,50 L70,50 L70,40 Q70,10 45,10 Q20,10 20,40 L20,60 Z" fill="${colorConfig.body}" stroke="#333" stroke-width="2"/>
+                    <path d="M40,65 Q50,85 70,65" fill="none" stroke="${colorConfig.beak}" stroke-width="3" stroke-linecap="round" />
+                    <circle cx="40" cy="30" r="5" fill="white" />
+                    <circle cx="42" cy="30" r="2" fill="black" />
+                    <path d="M20,35 Q5,35 5,45 Q5,50 20,45 Z" fill="${colorConfig.beak}" stroke="#333" stroke-width="1"/>
+                </g>
+            </svg>`;
+        }
+
+        // --- Initialization ---
+        function initGame() {
+            DUCK_COLORS.forEach((duckConfig, index) => {
+                const lane = document.createElement('div');
+                lane.className = 'lane';
+                lane.style.top = `${index * 25}%`;
+                
+                const duckDiv = document.createElement('div');
+                duckDiv.className = 'duck-wrapper';
+                duckDiv.id = `duck-${index}`;
+                duckDiv.innerHTML = `
+                    ${getDuckSVG(duckConfig)}
+                    <div class="duck-name">${duckConfig.name}</div>
+                `;
+                
+                lane.appendChild(duckDiv);
+                gameWorldEl.appendChild(lane);
+
+                ducks.push({
+                    el: duckDiv,
+                    originalIndex: index,
+                    x: 0,
+                    speed: 2,
+                    wobbleOffset: Math.random() * Math.PI * 2,
+                    finished: false,
+                    config: duckConfig
+                });
+
+                const btn = document.createElement('div');
+                btn.className = 'bet-btn';
+                btn.innerHTML = `
+                    ${getDuckSVG(duckConfig)}
+                    <strong>${duckConfig.name}</strong>
+                `;
+                btn.onclick = () => selectDuck(index, btn);
+                duckSelectionEl.appendChild(btn);
+            });
+        }
+
+        function selectDuck(index, btnElement) {
+            selectedDuckIndex = index;
+            document.querySelectorAll('.bet-btn').forEach(b => b.classList.remove('selected'));
+            btnElement.classList.add('selected');
+            startBtn.disabled = false;
+            startBtn.textContent = `Bet on ${DUCK_COLORS[index].name}`;
+        }
+
+        startBtn.onclick = () => {
+            if (selectedDuckIndex === -1) return;
+            gameUI.style.display = 'none';
+            isRacing = true;
+            finishOrder = []; // Reset finish order
+            requestAnimationFrame(gameLoop);
+        };
+
+        // --- Game Logic ---
+        function gameLoop(timestamp) {
+            if (!isRacing) return;
+
+            const raceDistance = window.innerWidth * 4; 
+            const finishLineX = raceDistance;
+            
+            // Limit camera so it stops scrolling once the finish line is well in view
+            // We want the finish line at roughly 80% of the screen width
+            const maxCameraX = finishLineX - (window.innerWidth * 0.8);
+
+            let leadingDuckX = 0;
+
+            ducks.forEach((duck, index) => {
+                // If finished, ensure it stays at the line
+                if (duck.finished) {
+                     // Keep track of leader even if finished so camera doesn't snap back
+                    if(duck.x > leadingDuckX) leadingDuckX = duck.x;
+                    
+                    // Add subtle bobbing even when finished
+                    const wobbleY = Math.sin((timestamp / 200) + duck.wobbleOffset) * 2;
+                    duck.el.style.transform = `translate(${duck.x}px, ${wobbleY}px)`;
+                    return; 
+                }
+
+                // Momentum logic
+                duck.speed += (Math.random() - 0.5) * 0.1;
+                duck.speed = Math.max(2, Math.min(duck.speed, 6));
+
+                duck.x += duck.speed;
+                if(duck.x > leadingDuckX) leadingDuckX = duck.x;
+
+                const wobbleY = Math.sin((timestamp / 200) + duck.wobbleOffset) * 5;
+                duck.el.style.transform = `translate(${duck.x}px, ${wobbleY}px)`;
+
+                // Check Finish
+                if (duck.x >= finishLineX) {
+                    duck.finished = true;
+                    duck.x = finishLineX + (Math.random() * 50); // Stagger stopping positions slightly
+                    finishOrder.push(duck);
+                    
+                    // Check if EVERYONE is finished
+                    if (finishOrder.length === ducks.length) {
+                        isRacing = false;
+                        showPodium();
+                    }
+                }
+            });
+
+            // Camera Smoothing
+            let targetCameraX = Math.max(0, leadingDuckX - (window.innerWidth * 0.4));
+            
+            // Clamp camera so it doesn't go past the "End of World"
+            if (targetCameraX > maxCameraX) targetCameraX = maxCameraX;
+
+            cameraX += (targetCameraX - cameraX) * 0.05;
+
+            gameWorldEl.style.transform = `translateX(-${cameraX}px)`;
+            
+            // Parallax
+            waveEls.forEach(wave => {
+                wave.style.backgroundPositionX = `-${cameraX}px`;
+            });
+
+            if(cloudLayerEl) {
+                cloudLayerEl.style.transform = `translateX(-${cameraX * 0.1}px)`;
+            }
+
+            // Always continue loop until all finished flag is set
+            if (isRacing || finishOrder.length < ducks.length) {
+                animationFrameId = requestAnimationFrame(gameLoop);
+            }
+        }
+
+        function showPodium() {
+            cancelAnimationFrame(animationFrameId);
+
+            setTimeout(() => {
+                gameUI.style.display = 'flex';
+                bettingPanel.style.display = 'none';
+                resultsPanel.style.display = 'block';
+                podiumDisplay.innerHTML = ''; // Clear previous
+
+                const userWon = (finishOrder[0].originalIndex === selectedDuckIndex);
+
+                // Message Update
+                if (userWon) {
+                    resultTitle.textContent = "You Won! 🎉";
+                    resultTitle.style.color = "#2ecc71";
+                    resultMessage.textContent = "Your duck is the champion!";
+                    createConfetti();
+                } else {
+                    const myDuckPlace = finishOrder.findIndex(d => d.originalIndex === selectedDuckIndex) + 1;
+                    resultTitle.textContent = "Race Over!";
+                    resultTitle.style.color = "#333";
+                    resultMessage.textContent = `Your duck came in ${getOrdinal(myDuckPlace)} place.`;
+                }
+
+                // Build Podium (Top 3)
+                // We only show top 3 on the visual podium
+                for(let i = 0; i < 3; i++) {
+                    if (i >= finishOrder.length) break;
+                    
+                    const duck = finishOrder[i];
+                    const rank = i + 1;
+                    const isUserPick = (duck.originalIndex === selectedDuckIndex);
+
+                    const podiumStep = document.createElement('div');
+                    podiumStep.className = `podium-step rank-${rank}`;
+                    
+                    podiumStep.innerHTML = `
+                        ${isUserPick ? '<div class="user-bet-indicator">Your Pick</div>' : ''}
+                        <div class="podium-duck">
+                            ${getDuckSVG(duck.config)}
+                        </div>
+                        <div class="podium-bar">${rank}</div>
+                    `;
+                    
+                    podiumDisplay.appendChild(podiumStep);
+                }
+
+            }, 1000);
+        }
+
+        function getOrdinal(n) {
+            var s = ["th", "st", "nd", "rd"];
+            var v = n % 100;
+            return n + (s[(v - 20) % 10] || s[v] || s[0]);
+        }
+
+        function resetGame() {
+            isRacing = false;
+            cameraX = 0;
+            finishOrder = [];
+            
+            ducks.forEach(duck => {
+                duck.x = 0;
+                duck.speed = 2;
+                duck.finished = false;
+                duck.el.style.transform = `translate(0px, 0px)`;
+            });
+
+            gameWorldEl.style.transform = `translateX(0px)`;
+            if(cloudLayerEl) cloudLayerEl.style.transform = `translateX(0px)`;
+            waveEls.forEach(wave => {
+                wave.style.backgroundPositionX = `0px`;
+            });
+
+            resultsPanel.style.display = 'none';
+            bettingPanel.style.display = 'block';
+            document.querySelectorAll('.confetti').forEach(c => c.remove());
+        }
+
+        function createConfetti() {
+            const colors = ['#f00', '#0f0', '#00f', '#ff0', '#f0f', '#0ff'];
+            for (let i = 0; i < 50; i++) {
+                const conf = document.createElement('div');
+                conf.className = 'confetti';
+                conf.style.left = Math.random() * 100 + 'vw';
+                conf.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                conf.style.animationDuration = (Math.random() * 2 + 2) + 's';
+                document.body.appendChild(conf);
+            }
+        }
+
+        initGame();
+    </script>
+</body>
+</html>
