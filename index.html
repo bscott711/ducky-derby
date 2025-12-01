@@ -273,14 +273,49 @@
         @keyframes fall { to { transform: translateY(100vh) rotate(720deg); } }
 
         /* Podium Styles */
-        .podium-container { display: flex; align-items: flex-end; justify-content: center; height: 180px; gap: 10px; margin-top: 20px; }
-        .podium-step { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; position: relative; width: 60px; }
+        .podium-container { display: flex; align-items: flex-end; justify-content: center; height: 200px; gap: 10px; margin-top: 20px; }
+        .podium-step { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; position: relative; width: 80px; }
         .podium-duck { width: 50px; height: 50px; margin-bottom: 5px; animation: bounce 1s infinite alternate; }
-        .podium-bar { width: 100%; border-radius: 8px 8px 0 0; display: flex; justify-content: center; align-items: flex-end; padding-bottom: 10px; color: white; font-weight: bold; font-size: 20px; }
-        .rank-1 .podium-bar { height: 100px; background: #FFD700; order: 2; }
-        .rank-2 .podium-bar { height: 70px; background: #C0C0C0; order: 1; }
-        .rank-3 .podium-bar { height: 50px; background: #CD7F32; order: 3; }
+        .podium-bar { width: 100%; border-radius: 8px 8px 0 0; display: flex; justify-content: center; align-items: flex-end; padding-bottom: 10px; color: white; font-weight: bold; font-size: 20px; position: relative; }
+        
+        .rank-1 .podium-bar { height: 100px; background: #FFD700; order: 2; z-index: 2; }
+        .rank-2 .podium-bar { height: 70px; background: #C0C0C0; order: 1; z-index: 1; }
+        .rank-3 .podium-bar { height: 50px; background: #CD7F32; order: 3; z-index: 0; }
         .rank-1 { order: 2; } .rank-2 { order: 1; } .rank-3 { order: 3; }
+
+        .podium-names {
+            font-size: 10px;
+            color: #555;
+            text-align: center;
+            margin-top: 5px;
+            line-height: 1.2;
+            font-weight: bold;
+            width: 100%;
+            white-space: normal;
+        }
+        
+        .user-bet-indicator {
+            position: absolute;
+            top: -25px;
+            background: #333;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            white-space: nowrap;
+            z-index: 10;
+        }
+        .user-bet-indicator::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-left: 4px solid transparent;
+            border-right: 4px solid transparent;
+            border-top: 4px solid #333;
+        }
+
     </style>
 </head>
 <body>
@@ -374,6 +409,7 @@
         let myDuckIndex = -1;
         let seed = 0; // The magic number for sync
         let raceStatus = 'lobby'; // lobby, racing, finished
+        let currentPlayers = {}; // Track all players for results
         
         // --- GAME LOGIC VARS ---
         const DUCK_COLORS = [
@@ -505,6 +541,10 @@
             onSnapshot(raceRef, (docSnap) => {
                 if(!docSnap.exists()) return;
                 const data = docSnap.data();
+                
+                // UPDATE PLAYERS GLOBALLY
+                currentPlayers = data.players || {};
+                
                 updateLobbyUI(data);
                 
                 // Check Race Start
@@ -734,22 +774,37 @@
                 const podiumDisplay = document.getElementById('podium-display');
                 podiumDisplay.innerHTML = '';
 
-                // Did I win?
-                const winnerIndex = finishOrder[0].originalIndex;
-                const userWon = (myDuckIndex === winnerIndex);
+                // Identify Winners
+                const winningDuckIndex = finishOrder[0].originalIndex;
+                const winners = Object.values(currentPlayers).filter(p => p.duckIndex === winningDuckIndex);
+                const winnerNames = winners.map(p => p.name);
+                const userWon = (myDuckIndex === winningDuckIndex);
                 
                 const resultTitle = document.getElementById('result-title');
                 const resultMessage = document.getElementById('result-message');
 
+                // Dynamic Message
                 if (userWon) {
                     resultTitle.textContent = "You Won! 🎉";
                     resultTitle.style.color = "#2ecc71";
-                    resultMessage.textContent = "Your duck is the champion!";
+                    
+                    const otherWinners = winnerNames.filter(n => n !== currentPlayers[currentUser.uid].name);
+                    if(otherWinners.length > 0) {
+                        resultMessage.textContent = `(Shared with ${otherWinners.join(', ')})`;
+                    } else {
+                        resultMessage.textContent = "Your duck is the champion!";
+                    }
                     createConfetti();
                 } else {
-                    resultTitle.textContent = "Race Over!";
-                    resultTitle.style.color = "#333";
-                    resultMessage.textContent = myDuckIndex === -1 ? "You were a spectator." : "Better luck next time.";
+                    if (winnerNames.length > 0) {
+                        resultTitle.textContent = `${winnerNames.join(' & ')} Won!`;
+                        resultTitle.style.color = "#333";
+                        resultMessage.textContent = `They picked ${DUCK_COLORS[winningDuckIndex].name}.`;
+                    } else {
+                        resultTitle.textContent = "No Winners!";
+                        resultTitle.style.color = "#e74c3c";
+                        resultMessage.textContent = "No one picked the winner.";
+                    }
                 }
 
                 // Build Podium
@@ -758,11 +813,23 @@
                     const duck = finishOrder[i];
                     const rank = i + 1;
                     
+                    // Find who picked this duck
+                    const pickers = Object.values(currentPlayers)
+                        .filter(p => p.duckIndex === duck.originalIndex)
+                        .map(p => p.name);
+
                     const step = document.createElement('div');
                     step.className = `podium-step rank-${rank}`;
+                    
+                    // "You" indicator
+                    const isMyPick = (duck.originalIndex === myDuckIndex);
+                    const meIndicator = isMyPick ? `<div class="user-bet-indicator">You</div>` : '';
+
                     step.innerHTML = `
+                        ${meIndicator}
                         <div class="podium-duck">${getDuckSVG(duck.config)}</div>
                         <div class="podium-bar">${rank}</div>
+                        <div class="podium-names">${pickers.join('<br>')}</div>
                     `;
                     podiumDisplay.appendChild(step);
                 }
