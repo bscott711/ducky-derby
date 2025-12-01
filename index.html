@@ -174,11 +174,14 @@
             border: 4px solid #fff;
             max-height: 90vh;
             overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
         }
 
-        h1 { margin-top: 0; color: #333; font-size: 2rem; }
+        h1 { margin-top: 0; color: #333; font-size: 2rem; margin-bottom: 5px; }
         h3 { margin: 10px 0; color: #555; }
-        p { color: #666; margin-bottom: 1.5rem; }
+        p { color: #666; margin-bottom: 10px; }
 
         .duck-grid {
             display: grid;
@@ -218,7 +221,7 @@
             font-weight: bold;
             transition: background 0.2s;
             box-shadow: 0 4px 0 #E67e00;
-            margin-top: 20px;
+            margin-top: 10px;
             width: 100%;
         }
         .action-btn:hover { background: #FFA500; }
@@ -242,7 +245,7 @@
         }
         .player-item.me { font-weight: bold; color: #1E90FF; }
         
-        .input-group { margin-bottom: 15px; }
+        .input-group { margin-bottom: 15px; display: flex; gap: 5px; justify-content: center; }
         input[type="text"] {
             padding: 10px;
             font-size: 16px;
@@ -263,15 +266,65 @@
             user-select: text;
         }
 
-        .confetti {
-            position: absolute;
-            width: 10px; height: 10px;
-            background-color: #f00;
-            animation: fall linear forwards;
-            z-index: 50;
+        /* Lobby List Styles */
+        .lobby-list-container {
+            text-align: left;
+            margin-top: 15px;
+            border-top: 2px solid #eee;
+            padding-top: 15px;
+            max-height: 250px;
+            overflow-y: auto;
         }
-        @keyframes fall { to { transform: translateY(100vh) rotate(720deg); } }
+        .room-card {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.2s;
+        }
+        .room-card:hover {
+            border-color: #FF8C00;
+            background: #FFF8F0;
+        }
+        .room-info {
+            display: flex;
+            flex-direction: column;
+        }
+        .room-code-small {
+            font-weight: bold;
+            font-family: monospace;
+            background: #eee;
+            padding: 2px 4px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            color: #555;
+        }
+        .join-small-btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 5px 15px;
+            border-radius: 15px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+        .join-small-btn:hover { background: #45a049; }
 
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin: 10px 0;
+            color: #555;
+            font-size: 0.9em;
+        }
+        
         /* Podium Styles */
         .podium-container { display: flex; align-items: flex-end; justify-content: center; height: 200px; gap: 10px; margin-top: 20px; }
         .podium-step { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; position: relative; width: 80px; }
@@ -315,6 +368,15 @@
             border-right: 4px solid transparent;
             border-top: 4px solid #333;
         }
+        
+        .confetti {
+            position: absolute;
+            width: 10px; height: 10px;
+            background-color: #f00;
+            animation: fall linear forwards;
+            z-index: 50;
+        }
+        @keyframes fall { to { transform: translateY(100vh) rotate(720deg); } }
 
     </style>
 </head>
@@ -339,17 +401,37 @@
         <!-- SCREEN 1: LOGIN / START -->
         <div class="panel" id="start-panel">
             <h1>🦆 Duck Derby 🦆</h1>
-            <p>Enter your name to join the fun!</p>
-            <div class="input-group">
-                <input type="text" id="player-name-input" placeholder="Your Name (e.g., Maverick)" maxlength="12">
+            
+            <div style="margin-bottom: 20px;">
+                <label style="font-weight:bold; color:#444; display:block; text-align:left; margin-left:10%;">Your Name:</label>
+                <div class="input-group">
+                    <input type="text" id="player-name-input" placeholder="e.g. Maverick" maxlength="12" style="width: 80%;">
+                </div>
             </div>
-            <button class="action-btn" id="create-room-btn">Create New Race</button>
-            <br><br>
-            <p style="margin-bottom: 5px; font-size: 0.9em;">OR JOIN EXISTING</p>
-            <div class="input-group">
-                <input type="text" id="room-code-input" placeholder="Enter Room Code" style="text-transform: uppercase;">
+
+            <div style="border-bottom: 2px dashed #eee; padding-bottom: 20px; margin-bottom: 10px;">
+                <h3 style="margin: 0 0 10px 0;">Start New Race</h3>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="is-public-check" checked>
+                    <label for="is-public-check">List Publicly (Visible to everyone)</label>
+                </div>
+                <button class="action-btn" id="create-room-btn">Create Race</button>
             </div>
-            <button class="action-btn" id="join-room-btn" style="background: #4CAF50;">Join Race</button>
+
+            <div class="lobby-list-container">
+                <h3 style="margin-top:0;">Available Public Races</h3>
+                <div id="public-room-list">
+                    <div style="text-align:center; color:#999; padding: 20px;">Loading rooms...</div>
+                </div>
+            </div>
+
+            <div style="margin-top: 15px; border-top: 2px dashed #eee; padding-top: 15px;">
+                <p style="font-size: 0.9em; margin-bottom: 5px;">Have a private code?</p>
+                <div class="input-group">
+                    <input type="text" id="room-code-input" placeholder="Code" style="text-transform: uppercase; width: 40%;">
+                    <button class="join-small-btn" id="join-room-btn" style="border-radius: 8px;">Join Private</button>
+                </div>
+            </div>
         </div>
 
         <!-- SCREEN 2: LOBBY -->
@@ -382,7 +464,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, onSnapshot, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, getDoc, onSnapshot, updateDoc, collection } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 
         // --- CONFIGURATION ---
         // 1. FOR GITHUB PAGES: Replace the 'firebaseConfig' object below with your own from the Firebase Console.
@@ -437,6 +519,7 @@
         const duckSelectionEl = document.getElementById('duck-selection');
         const playerListEl = document.getElementById('lobby-player-list');
         const startRaceBtn = document.getElementById('start-race-btn');
+        const publicRoomListEl = document.getElementById('public-room-list');
 
         // --- AUTH & INIT ---
         async function initAuth() {
@@ -452,6 +535,8 @@
             if (user) {
                 currentUser = user;
                 console.log("Logged in:", user.uid);
+                // Start listening for rooms once we are logged in
+                subscribeToPublicRooms();
             }
         });
 
@@ -475,9 +560,69 @@
                 : 'races'; // For your GitHub pages
         };
 
-        // Create Room
+        // 1. Subscribe to Public Rooms List
+        function subscribeToPublicRooms() {
+            const racesCollection = collection(db, getCollectionPath());
+            
+            // Note: We fetch the collection and filter in memory to avoid complex query/index requirements
+            onSnapshot(racesCollection, (snapshot) => {
+                if (currentRoomId) return; // Don't update list if we are already in a room
+
+                const rooms = [];
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    // FILTER: Only show Lobby status AND Public rooms
+                    if (data.status === 'lobby' && data.isPublic === true) {
+                        rooms.push({ id: doc.id, ...data });
+                    }
+                });
+                renderRoomList(rooms);
+            });
+        }
+
+        function renderRoomList(rooms) {
+            publicRoomListEl.innerHTML = '';
+            if (rooms.length === 0) {
+                publicRoomListEl.innerHTML = '<div style="text-align:center; color:#999; padding: 20px;">No public races starting soon...<br>Be the first to create one!</div>';
+                return;
+            }
+
+            rooms.forEach(room => {
+                const playerCount = room.players ? Object.keys(room.players).length : 0;
+                
+                // Find Host Name
+                let hostName = "Unknown";
+                if (room.players && room.players[room.hostId]) {
+                    hostName = room.players[room.hostId].name;
+                }
+
+                const card = document.createElement('div');
+                card.className = 'room-card';
+                card.innerHTML = `
+                    <div class="room-info">
+                        <span style="font-weight:bold; color:#333;">Host: ${hostName}</span>
+                        <div style="font-size:0.85em; color:#666; margin-top:2px;">
+                            <span class="room-code-small">Code: ${room.id}</span>
+                            &nbsp; • &nbsp; ${playerCount} Players
+                        </div>
+                    </div>
+                `;
+                
+                const joinBtn = document.createElement('button');
+                joinBtn.className = 'join-small-btn';
+                joinBtn.textContent = 'JOIN';
+                joinBtn.onclick = () => joinRoom(room.id);
+                
+                card.appendChild(joinBtn);
+                publicRoomListEl.appendChild(card);
+            });
+        }
+
+        // 2. Create Room
         document.getElementById('create-room-btn').addEventListener('click', async () => {
             const name = document.getElementById('player-name-input').value.trim() || "Player 1";
+            const isPublic = document.getElementById('is-public-check').checked;
+            
             if(!currentUser) return;
 
             // Generate a simple 4-char room code
@@ -487,6 +632,7 @@
             const initialData = {
                 hostId: currentUser.uid,
                 status: 'lobby',
+                isPublic: isPublic, // Saved here
                 seed: 0,
                 players: {
                     [currentUser.uid]: { name: name, duckIndex: -1 }
@@ -498,18 +644,28 @@
             enterLobby(roomId, true, name);
         });
 
-        // Join Room
-        document.getElementById('join-room-btn').addEventListener('click', async () => {
-            const name = document.getElementById('player-name-input').value.trim() || "Player 2";
+        // 3. Join Private Room (Manual Code)
+        document.getElementById('join-room-btn').addEventListener('click', () => {
             const roomId = document.getElementById('room-code-input').value.trim().toUpperCase();
-            if(!roomId || !currentUser) return;
+            if(roomId) joinRoom(roomId);
+        });
+
+        // Shared Join Logic
+        async function joinRoom(roomId) {
+            const name = document.getElementById('player-name-input').value.trim() || "Guest Racer";
+            if(!currentUser) return;
 
             const raceRef = doc(db, getCollectionPath(), roomId);
             const snap = await getDoc(raceRef);
 
             if (snap.exists()) {
-                // Add self to players
                 const currentData = snap.data();
+                
+                if (currentData.status !== 'lobby') {
+                    alert("Race already started!");
+                    return;
+                }
+
                 const players = currentData.players || {};
                 players[currentUser.uid] = { name: name, duckIndex: -1 };
 
@@ -518,7 +674,7 @@
             } else {
                 alert("Room not found!");
             }
-        });
+        }
 
         // Enter Lobby & Subscribe
         function enterLobby(roomId, hostStatus, myName) {
