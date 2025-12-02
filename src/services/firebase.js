@@ -1,17 +1,16 @@
-import { getApp, getApps, initializeApp } from "firebase/app";
+import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, signInAnonymously } from "firebase/auth";
 import {
     collection,
     doc,
     getDoc,
-    getFirestore,
     initializeFirestore,
+    getFirestore, // Import this for the fallback
     onSnapshot,
     setDoc,
     updateDoc,
 } from "firebase/firestore";
 
-// Replace with your actual config
 const firebaseConfig = {
     apiKey: "AIzaSyBM_L6_YUj4jVplAU7LcGiP0cSwuh24D28",
     authDomain: "ducky-derby.firebaseapp.com",
@@ -22,22 +21,27 @@ const firebaseConfig = {
     measurementId: "G-G50XQ0HY6X",
 };
 
-// FIX: Singleton Pattern to prevent double-initialization on HMR
+// --- FIX STARTS HERE ---
+
+// 1. Singleton Check: If an app already exists (from a previous HMR reload), use it.
+//    Otherwise, initialize a new one. This prevents the "Double-Start" crash.
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+
 const auth = getAuth(app);
 
-// FIX: Force Long Polling to bypass Safari ITP blocking
-// Using 'true' here stabilizes the connection on Safari/Localhost by avoiding the
-// WebSocket -> Fallback -> Blocked chain.
+// 2. Connection Stabilizer:
+//    - 'experimentalForceLongPolling: true' forces a standard XHR connection.
+//    - This bypasses Safari's check that blocks "upgrading" connections on localhost.
 let db;
 try {
     db = initializeFirestore(app, {
         experimentalForceLongPolling: true,
     });
 } catch (e) {
-    // If firestore is already initialized (hot reload), use the existing instance
+    // If we are hot-reloading, Firestore is already initialized, so just grab it.
     db = getFirestore(app);
 }
+// --- FIX ENDS HERE ---
 
 // Use a fixed collection path for this app
 const COLLECTION_PATH = "races";
@@ -66,7 +70,7 @@ export const dbService = {
             racesCollection,
             (snapshot) => {
                 const rooms = [];
-                // FIX: Use for...of on snapshot.docs
+                // Use for...of on snapshot.docs
                 for (const doc of snapshot.docs) {
                     const data = doc.data();
                     if (data.status === "lobby" && data.isPublic === true) {
