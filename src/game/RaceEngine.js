@@ -20,14 +20,14 @@ export class RaceEngine {
             console.warn("⚠️ No seed provided, using fallback");
             currentSeed = Date.now();
         }
-        
+
         this.seededRandom = mulberry32(currentSeed);
         this.ducks = [];
         this.finishOrder = [];
         this.cameraX = 0;
 
         // 1. Reset DOM and Ensure it exists
-        this.ui.buildGameWorld(); 
+        this.ui.buildGameWorld();
 
         // 2. Initialize Logic Ducks
         for (const [index, config] of DUCK_COLORS.entries()) {
@@ -45,7 +45,7 @@ export class RaceEngine {
         }
 
         this.onFinishCallback = onFinish;
-        
+
         // 3. Start Loop
         console.log("Engine Loop Starting...", this.ducks);
         this.loop(0);
