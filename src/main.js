@@ -48,12 +48,29 @@ document.getElementById("join-room-btn").addEventListener("click", () => {
 async function handleJoinRoom(roomId) {
     const name = document.getElementById("player-name-input").value || "Guest";
     try {
-        await dbService.joinRoom(roomId, state.user.uid, name);
-        handleEnterLobby(roomId, false);
+        // Get the hostId from the join response
+        const hostId = await dbService.joinRoom(roomId, state.user.uid, name);
+
+        // Check if I am the host
+        const isMeHost = hostId === state.user.uid;
+
+        handleEnterLobby(roomId, isMeHost);
     } catch (e) {
         alert(e.message);
     }
 }
+
+// NEW: Delete Room Button Listener
+document.getElementById("delete-room-btn").addEventListener("click", async () => {
+    if (confirm("Are you sure you want to close this room? Everyone will be kicked.")) {
+        try {
+            await dbService.deleteRoom(state.room);
+            // The onSnapshot listener below will handle the UI reset
+        } catch (e) {
+            console.error("Failed to delete room:", e);
+        }
+    }
+});
 
 function handleEnterLobby(roomId, isHost) {
     state.room = roomId;
@@ -65,12 +82,20 @@ function handleEnterLobby(roomId, isHost) {
 
     const hostMsg = document.getElementById("host-msg");
     const startBtn = document.getElementById("start-race-btn");
+    const deleteBtn = document.getElementById("delete-room-btn"); // Get the new button
     const waitMsg = document.getElementById("waiting-msg");
 
+    // Toggle Host Controls
     if (isHost) {
         hostMsg.classList.remove("hidden");
         startBtn.classList.remove("hidden");
+        deleteBtn.classList.remove("hidden"); // Show Delete Button
         waitMsg.classList.add("hidden");
+    } else {
+        hostMsg.classList.add("hidden");
+        startBtn.classList.add("hidden");
+        deleteBtn.classList.add("hidden"); // Hide Delete Button
+        waitMsg.classList.remove("hidden");
     }
 
     ui.initDuckSelection((index) => {
@@ -80,17 +105,33 @@ function handleEnterLobby(roomId, isHost) {
 
     // Subscribe to Room Updates
     dbService.subscribeToRoom(roomId, (data) => {
+        // NEW: Handle Room Deletion (data is null if doc deleted)
+        if (!data) {
+            alert("The host has closed the room.");
+            resetToLobby();
+            return;
+        }
+
+        console.log("Room Update:", data); // DEBUG
+
         state.players = data.players || {};
         const readyCount = ui.updateLobbyPlayers(state.players, state.user.uid);
 
-        // Host Start Button Logic
         if (isHost) startBtn.disabled = readyCount === 0;
 
-        // Check Race Status Changes
         if (data.status === "racing" && state.raceStatus === "lobby") {
-            startRace(data.seed);
+            console.log("🏁 Race Signal Received! Seed:", data.seed);
+            const raceSeed = data.seed || 123456;
+            startRace(raceSeed);
         } else if (data.status === "lobby" && state.raceStatus !== "lobby") {
-            resetToLobby();
+            // Soft reset (back to lobby for rematch)
+            state.raceStatus = "lobby";
+            engine.stop();
+            ui.showPanel("lobby");
+            ui.initDuckSelection((index) => {
+                dbService.updateDuckSelection(state.room, state.user.uid, index, state.players);
+                ui.highlightSelectedDuck(index);
+            });
         }
     });
 }
@@ -110,19 +151,19 @@ document.getElementById("back-to-lobby-btn").addEventListener("click", async () 
 
 // --- GAME STATE ---
 function startRace(seed) {
+    console.log("🚀 Starting Client Engine with seed:", seed);
     state.raceStatus = "racing";
-    ui.showPanel("game"); // Hides UI overlay
+    ui.showPanel("game");
 
     engine.start(seed, (finishOrder) => {
         state.raceStatus = "finished";
+        console.log("🏆 Race Finished", finishOrder);
 
-        // Brief delay before showing results
         setTimeout(() => {
             ui.showPanel("results");
             const myDuck = state.players[state.user.uid]?.duckIndex;
             ui.showResults(finishOrder, state.players, myDuck, state.user.uid);
 
-            // Host control for back button
             const backBtn = document.getElementById("back-to-lobby-btn");
             if (state.isHost) {
                 backBtn.textContent = "Back to Lobby";
@@ -137,11 +178,8 @@ function startRace(seed) {
 
 function resetToLobby() {
     state.raceStatus = "lobby";
+    state.room = null; // Clear room
+    state.isHost = false;
     engine.stop();
-    ui.showPanel("lobby");
-    // Re-render lobby state
-    ui.initDuckSelection((index) => {
-        dbService.updateDuckSelection(state.room, state.user.uid, index, state.players);
-        ui.highlightSelectedDuck(index);
-    });
+    ui.showPanel("start"); // Go back to START panel, not lobby panel
 }

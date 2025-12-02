@@ -12,20 +12,31 @@ export class RaceEngine {
     }
 
     start(seedVal, onFinish) {
-        this.seededRandom = mulberry32(seedVal);
+        // FIX: Use a local variable instead of reassigning the parameter 'seedVal'
+        let currentSeed = seedVal;
+
+        // Safety check for seed
+        if (!currentSeed) {
+            console.warn("⚠️ No seed provided, using fallback");
+            currentSeed = Date.now();
+        }
+        
+        this.seededRandom = mulberry32(currentSeed);
         this.ducks = [];
         this.finishOrder = [];
         this.cameraX = 0;
 
-        // Create logical ducks
-        const duckEls = this.ui.buildGameWorld(); // Reset DOM
+        // 1. Reset DOM and Ensure it exists
+        this.ui.buildGameWorld(); 
 
+        // 2. Initialize Logic Ducks
         for (const [index, config] of DUCK_COLORS.entries()) {
             this.ducks.push({
                 index: index,
                 x: 0,
                 y: 0, // wobble offset
                 speed: 2,
+                // Use the seeded random to ensure everyone sees same wobble
                 wobbleOffset: this.seededRandom() * Math.PI * 2,
                 finished: false,
                 config: config,
@@ -34,6 +45,9 @@ export class RaceEngine {
         }
 
         this.onFinishCallback = onFinish;
+        
+        // 3. Start Loop
+        console.log("Engine Loop Starting...", this.ducks);
         this.loop(0);
     }
 
@@ -49,11 +63,13 @@ export class RaceEngine {
         for (const duck of this.ducks) {
             if (duck.finished) {
                 if (duck.x > leadingDuckX) leadingDuckX = duck.x;
-                return;
+                continue; // Skip physics for finished ducks
             }
 
             // Physics
-            duck.speed += (this.seededRandom() - 0.5) * 0.1;
+            // Ensure seededRandom returns a valid number
+            const rand = this.seededRandom();
+            duck.speed += (rand - 0.5) * 0.1;
             duck.speed = Math.max(2, Math.min(duck.speed, 6));
             duck.x += duck.speed;
 

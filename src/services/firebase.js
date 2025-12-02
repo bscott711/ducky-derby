@@ -2,9 +2,10 @@ import { getApp, getApps, initializeApp } from "firebase/app";
 import { getAuth, signInAnonymously } from "firebase/auth";
 import {
     collection,
+    deleteDoc, // <--- Imported deleteDoc
     doc,
     getDoc,
-    getFirestore, // Import this for the fallback
+    getFirestore,
     initializeFirestore,
     onSnapshot,
     setDoc,
@@ -21,29 +22,24 @@ const firebaseConfig = {
     measurementId: "G-G50XQ0HY6X",
 };
 
-// --- FIX STARTS HERE ---
-
-// 1. Singleton Check: If an app already exists (from a previous HMR reload), use it.
-//    Otherwise, initialize a new one. This prevents the "Double-Start" crash.
+// 1. Singleton: Get existing app or initialize a new one
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-
 const auth = getAuth(app);
 
-// 2. Connection Stabilizer:
-//    - 'experimentalForceLongPolling: true' forces a standard XHR connection.
-//    - This bypasses Safari's check that blocks "upgrading" connections on localhost.
+// 2. Connection Logic (With Logging)
 let db;
 try {
+    // EXPLICITLY set false to override any defaults or cached behaviors
     db = initializeFirestore(app, {
-        experimentalForceLongPolling: true,
+        experimentalForceLongPolling: false,
     });
+    console.log("🔥 Firebase: Initialized new Firestore instance (WebSockets Enabled)");
 } catch (e) {
-    // If we are hot-reloading, Firestore is already initialized, so just grab it.
+    // If this fails, it means an instance already exists (hot-reload)
     db = getFirestore(app);
+    console.log("♻️ Firebase: Reusing existing Firestore instance");
 }
-// --- FIX ENDS HERE ---
 
-// Use a fixed collection path for this app
 const COLLECTION_PATH = "races";
 
 export const authService = {
@@ -70,7 +66,6 @@ export const dbService = {
             racesCollection,
             (snapshot) => {
                 const rooms = [];
-                // Use for...of on snapshot.docs
                 for (const doc of snapshot.docs) {
                     const data = doc.data();
                     if (data.status === "lobby" && data.isPublic === true) {
@@ -111,10 +106,20 @@ export const dbService = {
         if (data.status !== "lobby") throw new Error("Race already started");
 
         const players = data.players || {};
-        players[userId] = { name: userName, duckIndex: -1 };
+        // Don't overwrite existing player data if just reconnecting
+        if (!players[userId]) {
+            players[userId] = { name: userName, duckIndex: -1 };
+        }
 
         await updateDoc(raceRef, { players });
-        return true;
+        // RETURN hostId so we can check if we own the room
+        return data.hostId;
+    },
+
+    // NEW: Delete Room Function
+    async deleteRoom(roomId) {
+        const raceRef = doc(db, COLLECTION_PATH, roomId);
+        await deleteDoc(raceRef);
     },
 
     subscribeToRoom(roomId, callback) {
@@ -122,7 +127,12 @@ export const dbService = {
         return onSnapshot(
             raceRef,
             (docSnap) => {
-                if (docSnap.exists()) callback(docSnap.data());
+                if (docSnap.exists()) {
+                    callback(docSnap.data());
+                } else {
+                    // Notify that the room is gone (deleted)
+                    callback(null);
+                }
             },
             (error) => {
                 console.error("Error subscribing to room:", error);

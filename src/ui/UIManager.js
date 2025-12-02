@@ -20,16 +20,20 @@ export class UIManager {
     }
 
     showPanel(panelName) {
-        // FIX: loop instead of forEach
+        // FIX: Use classList to toggle visibility because .hidden uses !important
         for (const el of Object.values(this.panels)) {
-            el.style.display = "none";
+            el.classList.add("hidden");
         }
 
         if (panelName === "game") {
             this.gameUI.style.display = "none";
         } else {
             this.gameUI.style.display = "flex";
-            this.panels[panelName].style.display = "block";
+
+            // Show the specific panel by removing the hidden class
+            if (this.panels[panelName]) {
+                this.panels[panelName].classList.remove("hidden");
+            }
         }
     }
 
@@ -39,8 +43,6 @@ export class UIManager {
 
     initDuckSelection(onSelect) {
         this.duckSelectionEl.innerHTML = "";
-        // Biome allows forEach on arrays if you really want,
-        // but let's stick to consistent for...of for DUCK_COLORS
         for (let index = 0; index < DUCK_COLORS.length; index++) {
             const duckConfig = DUCK_COLORS[index];
             const btn = document.createElement("div");
@@ -53,7 +55,6 @@ export class UIManager {
     }
 
     highlightSelectedDuck(index) {
-        // FIX: loop for NodeList
         for (const b of document.querySelectorAll(".bet-btn")) {
             b.classList.remove("selected");
         }
@@ -65,7 +66,6 @@ export class UIManager {
         this.playerListEl.innerHTML = "";
         let readyCount = 0;
 
-        // FIX: loop
         for (const [uid, p] of Object.entries(players)) {
             const div = document.createElement("div");
             div.className = `player-item${uid === currentUserId ? " me" : ""}`;
@@ -91,7 +91,6 @@ export class UIManager {
             return;
         }
 
-        // FIX: loop
         for (const room of rooms) {
             const playerCount = room.players ? Object.keys(room.players).length : 0;
             const hostName = room.players?.[room.hostId]
@@ -146,7 +145,6 @@ export class UIManager {
     updateCamera(cameraX, wobbleArray, duckPositions) {
         this.gameWorldEl.style.transform = `translateX(-${cameraX}px)`;
 
-        // FIX: loop
         for (const wave of this.waveEls) {
             wave.style.backgroundPositionX = `-${cameraX}px`;
         }

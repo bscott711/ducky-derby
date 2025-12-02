@@ -359,20 +359,26 @@ input[type="text"] {
     padding: 10px;
     border-radius: 8px;
     margin-bottom: 15px;
-    max-height: 150px;
-    overflow-y: auto;
+
+    /* FIX: Enforce size so it doesn't collapse or get squashed */
+    min-height: 150px; /* Ensure enough space for ~4-5 names always */
+    max-height: 250px; /* Allow it to grow larger if needed */
+    overflow-y: auto; /* Scroll if more players join */
+    flex-shrink: 0; /* Prevent the panel from squashing this list */
 }
 
 .player-item {
     display: flex;
     justify-content: space-between;
-    padding: 5px;
+    padding: 8px 5px; /* Slightly increased padding for readability */
     border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 .player-item.me {
     font-weight: bold;
     color: #1e90ff;
+    background-color: rgba(30, 144, 255, 0.1); /* Subtle highlight for you */
+    border-radius: 4px;
 }
 
 .lobby-list-container {
