@@ -1,14 +1,14 @@
-import { initializeApp, getApps, getApp } from "firebase/app";
+import { getApp, getApps, initializeApp } from "firebase/app";
 import { getAuth, signInAnonymously } from "firebase/auth";
 import {
     collection,
     doc,
     getDoc,
+    getFirestore,
     initializeFirestore,
     onSnapshot,
     setDoc,
     updateDoc,
-    getFirestore
 } from "firebase/firestore";
 
 // Replace with your actual config
