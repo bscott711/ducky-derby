@@ -1,11 +1,11 @@
-import { initializeApp, getApps, getApp } from "firebase/app";
+import { getApp, getApps, initializeApp } from "firebase/app";
 import { getAuth, signInAnonymously } from "firebase/auth";
 import {
     collection,
     doc,
     getDoc,
-    initializeFirestore,
     getFirestore, // Import this for the fallback
+    initializeFirestore,
     onSnapshot,
     setDoc,
     updateDoc,
