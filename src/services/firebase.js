@@ -4,7 +4,7 @@ import {
     collection,
     doc,
     getDoc,
-    getFirestore,
+    initializeFirestore,
     onSnapshot,
     setDoc,
     updateDoc,
@@ -23,14 +23,25 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const db = getFirestore(app);
+
+// FIX: Force WebSockets.
+// Since your domain is authorized, the "Access Control" error on 'xmlhttp' requests
+// means the browser is failing Long Polling. Forcing WebSockets bypasses this check.
+const db = initializeFirestore(app, {
+    experimentalForceLongPolling: false,
+});
 
 // Use a fixed collection path for this app
 const COLLECTION_PATH = "races";
 
 export const authService = {
     async signIn() {
-        return signInAnonymously(auth);
+        try {
+            return await signInAnonymously(auth);
+        } catch (error) {
+            console.error("Authentication failed:", error);
+            throw error;
+        }
     },
     getCurrentUser() {
         return auth.currentUser;
@@ -43,17 +54,23 @@ export const authService = {
 export const dbService = {
     subscribeToPublicRooms(callback) {
         const racesCollection = collection(db, COLLECTION_PATH);
-        return onSnapshot(racesCollection, (snapshot) => {
-            const rooms = [];
-            // FIX: Use for...of on snapshot.docs
-            for (const doc of snapshot.docs) {
-                const data = doc.data();
-                if (data.status === "lobby" && data.isPublic === true) {
-                    rooms.push({ id: doc.id, ...data });
+        return onSnapshot(
+            racesCollection,
+            (snapshot) => {
+                const rooms = [];
+                // FIX: Use for...of on snapshot.docs
+                for (const doc of snapshot.docs) {
+                    const data = doc.data();
+                    if (data.status === "lobby" && data.isPublic === true) {
+                        rooms.push({ id: doc.id, ...data });
+                    }
                 }
-            }
-            callback(rooms);
-        });
+                callback(rooms);
+            },
+            (error) => {
+                console.error("Error subscribing to public rooms:", error);
+            },
+        );
     },
 
     async createRoom(hostId, hostName, isPublic) {
@@ -90,9 +107,15 @@ export const dbService = {
 
     subscribeToRoom(roomId, callback) {
         const raceRef = doc(db, COLLECTION_PATH, roomId);
-        return onSnapshot(raceRef, (docSnap) => {
-            if (docSnap.exists()) callback(docSnap.data());
-        });
+        return onSnapshot(
+            raceRef,
+            (docSnap) => {
+                if (docSnap.exists()) callback(docSnap.data());
+            },
+            (error) => {
+                console.error("Error subscribing to room:", error);
+            },
+        );
     },
 
     async updateDuckSelection(roomId, userId, duckIndex, currentPlayers) {
