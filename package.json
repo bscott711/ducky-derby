@@ -1,21 +1,22 @@
 {
-    "name": "ducky-derby-multiplayer",
-    "private": true,
-    "version": "0.1.0",
-    "type": "module",
-    "scripts": {
-        "dev": "vite",
-        "build": "vite build",
-        "preview": "vite preview",
-        "lint": "biome check src",
-        "format": "biome check --write src",
-        "ci": "biome ci src"
-    },
-    "devDependencies": {
-        "@biomejs/biome": "^1.9.4",
-        "vite": "^5.0.0"
-    },
-    "dependencies": {
-        "firebase": "^10.7.1"
-    }
+  "name": "ducky-derby-multiplayer",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "biome check src",
+    "format": "biome check --write src",
+    "ci": "biome ci src",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "vite": "^5.0.0"
+  },
+  "dependencies": {
+    "firebase": "^10.7.1"
+  }
 }
