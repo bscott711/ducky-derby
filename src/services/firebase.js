@@ -1,4 +1,4 @@
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, signInAnonymously } from "firebase/auth";
 import {
     collection,
@@ -8,6 +8,7 @@ import {
     onSnapshot,
     setDoc,
     updateDoc,
+    getFirestore
 } from "firebase/firestore";
 
 // Replace with your actual config
@@ -21,15 +22,22 @@ const firebaseConfig = {
     measurementId: "G-G50XQ0HY6X",
 };
 
-const app = initializeApp(firebaseConfig);
+// FIX: Singleton Pattern to prevent double-initialization on HMR
+const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
-// FIX: Force WebSockets.
-// Since your domain is authorized, the "Access Control" error on 'xmlhttp' requests
-// means the browser is failing Long Polling. Forcing WebSockets bypasses this check.
-const db = initializeFirestore(app, {
-    experimentalForceLongPolling: false,
-});
+// FIX: Force Long Polling to bypass Safari ITP blocking
+// Using 'true' here stabilizes the connection on Safari/Localhost by avoiding the
+// WebSocket -> Fallback -> Blocked chain.
+let db;
+try {
+    db = initializeFirestore(app, {
+        experimentalForceLongPolling: true,
+    });
+} catch (e) {
+    // If firestore is already initialized (hot reload), use the existing instance
+    db = getFirestore(app);
+}
 
 // Use a fixed collection path for this app
 const COLLECTION_PATH = "races";
