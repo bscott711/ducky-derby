@@ -20,6 +20,11 @@ export class RaceEngine {
         this.raceFinished = false;
         this.globalTime = 0;
 
+        // Fixed Timestep Variables
+        this.accumulator = 0;
+        this.lastTime = 0;
+        this.FIXED_TIME_STEP = 1 / 60; // 60hz Physics
+
         window.addEventListener("resize", () => this.resize());
         this.resize();
     }
@@ -37,41 +42,39 @@ export class RaceEngine {
             currentSeed = Date.now();
         }
 
-        // 1. Initialize Seeded RNG
         this.rng = mulberry32(currentSeed);
         this.raceFinished = false;
         this.globalTime = 0;
+        this.accumulator = 0;
 
-        // 2. Generate World
+        // 1. Generate World (Using Fixed GAME_WIDTH)
         this.generateLevel();
 
-        // 3. Prepare Racers (Deterministic Sort + Seeded NPCs)
-        // FIX: Sort players by name so every client processes them in the exact same order
-        const racerList = Object.values(players).sort((a, b) => a.name.localeCompare(b.name));
+        // 2. Prepare Racers (Deterministic Sort + Seeded NPCs)
+        // Sort by ID to ensure stable order even if names are duplicate
+        const racerList = Object.values(players).sort((a, b) =>
+            (a.id || "").localeCompare(b.id || ""),
+        );
 
-        // FIX: Generate NPCs here using the SEEDED RNG, not Math.random()
         if (racerList.length < MIN_RACERS) {
             const needed = MIN_RACERS - racerList.length;
             for (let i = 0; i < needed; i++) {
-                // Seeded Name Pick
                 const nameIdx = Math.floor(this.rng() * NPC_NAMES.length);
                 const randomName = NPC_NAMES[nameIdx];
-
-                // Seeded Color Gen
                 const config = {
                     body: this.getSeededColor(),
                     beak: this.getSeededColor(),
                 };
-
                 racerList.push({
                     name: `${randomName} #${i + 1}`,
                     config: config,
                     isNPC: true,
+                    id: `npc-${i}`, // Dummy ID for consistency
                 });
             }
         }
 
-        // 4. Spawn Ducks
+        // 3. Spawn Ducks
         this.ducks = [];
         const bridgeY = -200;
         const segmentIndex = Math.floor((bridgeY + 500) / 5);
@@ -81,12 +84,14 @@ export class RaceEngine {
 
         for (const p of racerList) {
             const spread = bridgeWidth * 0.6;
-            // Now this rng() call corresponds to the SAME duck on every client
             const jitterX = (this.rng() - 0.5) * spread;
             const normX = jitterX / (bridgeWidth / 2);
-            const archY = bridgeY - archHeight * (1 - normX * normX);
-            const spawnY = archY - 10 - this.rng() * 20;
-            const startX = segment ? segment.centerX : this.canvas.width / 2;
+
+            const heightOnArch = archHeight * (1 - normX * normX);
+            const startZ = heightOnArch + 20 + this.rng() * 10;
+
+            // Use segment center (which is based on GAME_WIDTH), NOT screen width
+            const startX = segment ? segment.centerX : PHYSICS.GAME_WIDTH / 2;
 
             this.ducks.push({
                 id: p.name,
@@ -94,26 +99,20 @@ export class RaceEngine {
                 color: p.config.body,
                 beak: p.config.beak,
                 x: startX + jitterX,
-                y: spawnY,
+                y: bridgeY,
+                z: startZ,
+                vz: 0,
                 vx: 0,
                 vy: 0,
                 radius: PHYSICS.DUCK_RADIUS,
                 mass: PHYSICS.DUCK_MASS,
                 finished: false,
-                z: 0, // Should calculate Z here if using the 3D bridge drop logic from previous step, but keeping simple for fix
-                vz: 0,
                 trapTimer: 0,
                 cooldownTimer: 0,
                 effect: null,
                 effectTimer: 0,
                 originalRadius: PHYSICS.DUCK_RADIUS,
             });
-
-            // Re-apply the Z-axis drop logic from previous step if missing
-            // (Re-adding it here to ensure it matches your bridge visual)
-            const duck = this.ducks[this.ducks.length - 1];
-            const heightOnArch = archHeight * (1 - normX * normX);
-            duck.z = heightOnArch + 20 + this.rng() * 10;
         }
 
         const leaderVisualY = Math.max(...this.ducks.map((d) => d.y - d.z));
@@ -144,7 +143,8 @@ export class RaceEngine {
         this.whirlpools = [];
         this.powerupBoxes = [];
 
-        const center = this.canvas.width / 2;
+        // FIX: Use fixed Game Width logic, independent of screen size
+        const center = PHYSICS.GAME_WIDTH / 2;
         const amplitude = 300;
         const frequency = 0.002;
 
@@ -271,11 +271,23 @@ export class RaceEngine {
 
     loop() {
         const now = performance.now();
-        const dt = Math.min((now - this.lastTime) / 1000, 0.1);
+        // Calc dt in seconds
+        let dt = (now - this.lastTime) / 1000;
         this.lastTime = now;
-        this.globalTime += dt;
 
-        this.updatePhysics(dt);
+        // Prevent spiral of death if laggy (cap at 0.25s)
+        if (dt > 0.25) dt = 0.25;
+
+        this.accumulator += dt;
+
+        // FIX: Fixed Time Step Loop
+        // Run physics in fixed chunks of 1/60s
+        while (this.accumulator >= this.FIXED_TIME_STEP) {
+            this.updatePhysics(); // No dt param needed, implicitly 1/60
+            this.globalTime += this.FIXED_TIME_STEP;
+            this.accumulator -= this.FIXED_TIME_STEP;
+        }
+
         this.render();
 
         if (!this.raceFinished) {
@@ -283,8 +295,10 @@ export class RaceEngine {
         }
     }
 
-    updatePhysics(dt) {
-        const timeScale = dt * 60;
+    updatePhysics() {
+        // Since we are inside a fixed step loop, timescale is always 1.0 (relative to 60fps)
+        const timeScale = 1.0;
+
         let finishedCount = 0;
 
         for (const duck of this.ducks) {
@@ -293,6 +307,7 @@ export class RaceEngine {
                 continue;
             }
 
+            // --- Z-AXIS PHYSICS (FALLING) ---
             if (duck.z > 0) {
                 duck.vz -= PHYSICS.GRAVITY * timeScale;
                 duck.z += duck.vz * timeScale;
@@ -303,6 +318,7 @@ export class RaceEngine {
                 continue;
             }
 
+            // Powerups
             if (duck.effect) {
                 duck.effectTimer -= timeScale;
                 if (duck.effectTimer <= 0) {
@@ -410,6 +426,7 @@ export class RaceEngine {
             let frictionVal = 0.96;
             if (duck.effect === "ANCHOR") frictionVal = POWERUPS.ANCHOR_DRAG;
 
+            // Replaced Math.pow with **
             const friction = frictionVal ** timeScale;
             duck.vx *= friction;
             duck.vy *= friction;
@@ -423,6 +440,7 @@ export class RaceEngine {
             }
         }
 
+        // Collisions
         for (const duck of this.ducks) {
             if (duck.finished || duck.z > 0) continue;
             for (const box of this.powerupBoxes) {
@@ -571,11 +589,17 @@ export class RaceEngine {
 
         ctx.clearRect(0, 0, width, height);
         ctx.save();
-        ctx.translate(0, -camY);
 
+        // FIX: Center the Fixed Game World relative to the Screen Width
+        const offsetX = (width - PHYSICS.GAME_WIDTH) / 2;
+        ctx.translate(offsetX, -camY);
+
+        // 1. Bank
         ctx.fillStyle = "#228B22";
-        ctx.fillRect(0, camY, width, height);
+        // Draw bank filling entire view height
+        ctx.fillRect(0 - offsetX, camY, width + offsetX * 2, height);
 
+        // 2. Decorations
         const renderStart = camY - 100;
         const renderEnd = camY + height + 100;
 
@@ -589,6 +613,7 @@ export class RaceEngine {
             }
         }
 
+        // 3. River
         ctx.beginPath();
         ctx.fillStyle = "#1E90FF";
         const startIndex = Math.max(0, Math.floor((renderStart + 500) / 5));
@@ -604,6 +629,7 @@ export class RaceEngine {
         }
         ctx.fill();
 
+        // 4. Whirlpools
         for (const pool of this.whirlpools) {
             if (pool.y < renderStart || pool.y > renderEnd) continue;
             ctx.save();
@@ -625,6 +651,7 @@ export class RaceEngine {
             ctx.restore();
         }
 
+        // 5. Rapids
         ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
         ctx.lineWidth = 2;
         for (const rapid of this.rapids) {
@@ -646,6 +673,7 @@ export class RaceEngine {
             ctx.stroke();
         }
 
+        // 6. Power-Up Boxes
         for (const box of this.powerupBoxes) {
             if (!box.active || box.y < renderStart || box.y > renderEnd) continue;
             ctx.save();
@@ -665,6 +693,7 @@ export class RaceEngine {
             ctx.restore();
         }
 
+        // 7. Obstacles
         for (const rock of this.obstacles) {
             if (rock.y < renderStart || rock.y > renderEnd) continue;
             ctx.save();
@@ -687,6 +716,7 @@ export class RaceEngine {
             ctx.restore();
         }
 
+        // 8. Bank Decorations
         for (const deco of this.decorations) {
             if (deco.y < renderStart || deco.y > renderEnd) continue;
             if (deco.type === "tree") {

@@ -11,7 +11,7 @@ const state = {
     user: null,
     room: null,
     isHost: false,
-    raceStatus: "lobby", // lobby, racing, finished
+    raceStatus: "lobby",
     players: {},
     chatUnsub: null,
     controlsInitialized: false,
@@ -174,24 +174,21 @@ function startRace(seed) {
     state.raceStatus = "racing";
     ui.showPanel("game");
 
-    const realPlayers = Object.values(state.players);
-    const racers = [...realPlayers];
+    // FIX: Map players to include IDs so sorting is deterministic
+    // Object.values() drops the keys (UIDs), so we map them back in
+    const realPlayers = Object.entries(state.players).map(([id, data]) => ({
+        id,
+        ...data,
+    }));
 
-    if (racers.length < MIN_RACERS) {
-        const needed = MIN_RACERS - racers.length;
-        for (let i = 0; i < needed; i++) {
-            const randomName = NPC_NAMES[Math.floor(Math.random() * NPC_NAMES.length)];
-            racers.push({
-                name: `${randomName} #${i + 1}`,
-                config: getRandomDuckConfig(),
-                isNPC: true,
-            });
-        }
-    }
+    // We don't need to generate NPCs here anymore, the Engine handles it deterministically!
 
-    engine.setup(seed, racers);
+    // 1. Setup
+    engine.setup(seed, realPlayers);
 
+    // 2. Countdown
     ui.runCountdown(() => {
+        // 3. Run
         engine.run((finishOrder) => {
             state.raceStatus = "finished";
             console.log("🏆 Race Finished", finishOrder);

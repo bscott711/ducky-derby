@@ -9,7 +9,10 @@ export const PHYSICS = {
     COLLISION_DAMPING: 0.8,
     WALL_DAMPING: 0.6,
     TURBULENCE: 0.2,
-    GRAVITY: 0.8, // NEW: For the bridge drop
+    GRAVITY: 0.8,
+
+    // NEW: Fixed Logical Width (The "Universe" size)
+    GAME_WIDTH: 800,
 
     // Rapids
     RAPID_SPEED_BOOST: 0.3,
