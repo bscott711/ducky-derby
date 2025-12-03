@@ -9,6 +9,7 @@ export const PHYSICS = {
     COLLISION_DAMPING: 0.8,
     WALL_DAMPING: 0.6,
     TURBULENCE: 0.2,
+    GRAVITY: 0.8, // NEW: For the bridge drop
 
     // Rapids
     RAPID_SPEED_BOOST: 0.3,
@@ -32,17 +33,17 @@ export const PHYSICS = {
 
 // Power-Up Configuration
 export const POWERUPS = {
-    SPAWN_RATE: 0.001, // Chance per pixel
-    BOX_SIZE: 20, // Visual size of the mystery box
-    DURATION: 300, // Duration in frames (approx 5 seconds)
+    SPAWN_RATE: 0.001,
+    BOX_SIZE: 20,
+    DURATION: 300,
 
     // Effect Tuning
-    GIANT_SCALE: 2.5, // How much bigger?
-    GIANT_GRAVITY: 0.8, // Pull force
-    GIANT_RANGE: 300, // Gravity radius
-    BOUNCY_FACTOR: 1.6, // Super elastic collision
-    SPEED_FORCE: 8.0, // Instant push
-    ANCHOR_DRAG: 0.9, // Heavy friction (0.90 vs normal 0.96)
+    GIANT_SCALE: 2.5,
+    GIANT_GRAVITY: 0.8,
+    GIANT_RANGE: 300,
+    BOUNCY_FACTOR: 1.6,
+    SPEED_FORCE: 8.0,
+    ANCHOR_DRAG: 0.9,
 
     TYPES: ["GIANT", "GHOST", "BOUNCY", "SPEED", "ANCHOR"],
 };

@@ -16,7 +16,6 @@ import {
     updateDoc,
 } from "firebase/firestore";
 
-// ... [Keep Config & Initialization Logic] ...
 const firebaseConfig = {
     apiKey: "AIzaSyBM_L6_YUj4jVplAU7LcGiP0cSwuh24D28",
     authDomain: "ducky-derby.firebaseapp.com",
@@ -65,7 +64,11 @@ export const dbService = {
             const rooms = [];
             for (const doc of snapshot.docs) {
                 const data = doc.data();
-                if (data.status === "lobby" && data.isPublic === true) {
+                // FIX: Show both Lobby AND Racing rooms so they don't "disappear"
+                if (
+                    data.isPublic === true &&
+                    (data.status === "lobby" || data.status === "racing")
+                ) {
                     rooms.push({ id: doc.id, ...data });
                 }
             }
@@ -84,7 +87,7 @@ export const dbService = {
             players: {
                 [hostId]: {
                     name: hostName,
-                    color: duckConfig.body, // Default color
+                    color: duckConfig.body,
                     config: duckConfig,
                 },
             },
@@ -130,7 +133,6 @@ export const dbService = {
         });
     },
 
-    // Updated to update entire config (color), not just an index
     async updatePlayerConfig(roomId, userId, duckConfig, currentPlayers) {
         const raceRef = doc(db, COLLECTION_PATH, roomId);
         const players = { ...currentPlayers };
@@ -151,7 +153,6 @@ export const dbService = {
         await updateDoc(raceRef, { status: "lobby" });
     },
 
-    // --- CHAT FUNCTIONS ---
     async sendChatMessage(roomId, userId, userName, text) {
         const chatRef = collection(db, COLLECTION_PATH, roomId, "messages");
         await addDoc(chatRef, {

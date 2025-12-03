@@ -1,4 +1,4 @@
-import { LEVEL_GEN, PHYSICS, POWERUPS, RACE_DISTANCE } from "../config.js";
+import { LEVEL_GEN, MIN_RACERS, NPC_NAMES, PHYSICS, POWERUPS, RACE_DISTANCE } from "../config.js";
 import { mulberry32 } from "../utils/rng.js";
 
 export class RaceEngine {
@@ -37,25 +37,51 @@ export class RaceEngine {
             currentSeed = Date.now();
         }
 
+        // 1. Initialize Seeded RNG
         this.rng = mulberry32(currentSeed);
         this.raceFinished = false;
         this.globalTime = 0;
 
-        // 1. Generate World
+        // 2. Generate World
         this.generateLevel();
 
-        // 2. Spawn Ducks
-        this.ducks = [];
-        const playerList = Object.values(players);
+        // 3. Prepare Racers (Deterministic Sort + Seeded NPCs)
+        // FIX: Sort players by name so every client processes them in the exact same order
+        const racerList = Object.values(players).sort((a, b) => a.name.localeCompare(b.name));
 
+        // FIX: Generate NPCs here using the SEEDED RNG, not Math.random()
+        if (racerList.length < MIN_RACERS) {
+            const needed = MIN_RACERS - racerList.length;
+            for (let i = 0; i < needed; i++) {
+                // Seeded Name Pick
+                const nameIdx = Math.floor(this.rng() * NPC_NAMES.length);
+                const randomName = NPC_NAMES[nameIdx];
+
+                // Seeded Color Gen
+                const config = {
+                    body: this.getSeededColor(),
+                    beak: this.getSeededColor(),
+                };
+
+                racerList.push({
+                    name: `${randomName} #${i + 1}`,
+                    config: config,
+                    isNPC: true,
+                });
+            }
+        }
+
+        // 4. Spawn Ducks
+        this.ducks = [];
         const bridgeY = -200;
         const segmentIndex = Math.floor((bridgeY + 500) / 5);
         const segment = this.riverPath[segmentIndex] || this.riverPath[0];
         const bridgeWidth = PHYSICS.RIVER_WIDTH + 140;
         const archHeight = 60;
 
-        for (const p of playerList) {
+        for (const p of racerList) {
             const spread = bridgeWidth * 0.6;
+            // Now this rng() call corresponds to the SAME duck on every client
             const jitterX = (this.rng() - 0.5) * spread;
             const normX = jitterX / (bridgeWidth / 2);
             const archY = bridgeY - archHeight * (1 - normX * normX);
@@ -74,20 +100,33 @@ export class RaceEngine {
                 radius: PHYSICS.DUCK_RADIUS,
                 mass: PHYSICS.DUCK_MASS,
                 finished: false,
+                z: 0, // Should calculate Z here if using the 3D bridge drop logic from previous step, but keeping simple for fix
+                vz: 0,
                 trapTimer: 0,
                 cooldownTimer: 0,
                 effect: null,
                 effectTimer: 0,
                 originalRadius: PHYSICS.DUCK_RADIUS,
             });
+
+            // Re-apply the Z-axis drop logic from previous step if missing
+            // (Re-adding it here to ensure it matches your bridge visual)
+            const duck = this.ducks[this.ducks.length - 1];
+            const heightOnArch = archHeight * (1 - normX * normX);
+            duck.z = heightOnArch + 20 + this.rng() * 10;
         }
 
-        // 3. Snap Camera
-        const leaderY = Math.max(...this.ducks.map((d) => d.y));
-        this.cameraY = leaderY - this.canvas.height * 0.4;
+        const leaderVisualY = Math.max(...this.ducks.map((d) => d.y - d.z));
+        this.cameraY = leaderVisualY - this.canvas.height * 0.4;
 
-        // 4. Initial Render
         this.render();
+    }
+
+    getSeededColor() {
+        const val = Math.floor(this.rng() * 16777215)
+            .toString(16)
+            .padStart(6, "0");
+        return `#${val}`;
     }
 
     // --- PHASE 2: RUN ---
@@ -254,7 +293,16 @@ export class RaceEngine {
                 continue;
             }
 
-            // Powerups
+            if (duck.z > 0) {
+                duck.vz -= PHYSICS.GRAVITY * timeScale;
+                duck.z += duck.vz * timeScale;
+                if (duck.z <= 0) {
+                    duck.z = 0;
+                    duck.vz = 0;
+                }
+                continue;
+            }
+
             if (duck.effect) {
                 duck.effectTimer -= timeScale;
                 if (duck.effectTimer <= 0) {
@@ -280,7 +328,6 @@ export class RaceEngine {
                 }
             }
 
-            // Standard Physics
             if (duck.cooldownTimer > 0) duck.cooldownTimer -= timeScale;
 
             const segmentIndex = Math.floor((duck.y + 500) / 5);
@@ -376,9 +423,8 @@ export class RaceEngine {
             }
         }
 
-        // Collisions
         for (const duck of this.ducks) {
-            if (duck.finished) continue;
+            if (duck.finished || duck.z > 0) continue;
             for (const box of this.powerupBoxes) {
                 if (!box.active) continue;
                 if (
@@ -395,7 +441,7 @@ export class RaceEngine {
                 const d1 = this.ducks[i];
                 const d2 = this.ducks[j];
 
-                if (d1.finished || d2.finished) continue;
+                if (d1.finished || d2.finished || d1.z > 0 || d2.z > 0) continue;
                 if (d1.effect === "GHOST" || d2.effect === "GHOST") continue;
 
                 this.resolveCollision(d1, d2);
@@ -403,7 +449,7 @@ export class RaceEngine {
         }
 
         for (const duck of this.ducks) {
-            if (duck.finished) continue;
+            if (duck.finished || duck.z > 0) continue;
             this.resolveWallCollision(duck);
 
             if (duck.effect === "GHOST") continue;
@@ -414,8 +460,8 @@ export class RaceEngine {
             }
         }
 
-        const leaderY = Math.max(...this.ducks.map((d) => d.y));
-        const targetCamY = leaderY - this.canvas.height * 0.4;
+        const leaderVisualY = Math.max(...this.ducks.map((d) => d.y - d.z));
+        const targetCamY = leaderVisualY - this.canvas.height * 0.4;
         this.cameraY += (targetCamY - this.cameraY) * 0.05 * timeScale;
 
         if (finishedCount === this.ducks.length) {
@@ -527,11 +573,9 @@ export class RaceEngine {
         ctx.save();
         ctx.translate(0, -camY);
 
-        // 1. Bank
         ctx.fillStyle = "#228B22";
         ctx.fillRect(0, camY, width, height);
 
-        // 2. Decorations
         const renderStart = camY - 100;
         const renderEnd = camY + height + 100;
 
@@ -545,7 +589,6 @@ export class RaceEngine {
             }
         }
 
-        // 3. River
         ctx.beginPath();
         ctx.fillStyle = "#1E90FF";
         const startIndex = Math.max(0, Math.floor((renderStart + 500) / 5));
@@ -561,7 +604,6 @@ export class RaceEngine {
         }
         ctx.fill();
 
-        // 4. Whirlpools
         for (const pool of this.whirlpools) {
             if (pool.y < renderStart || pool.y > renderEnd) continue;
             ctx.save();
@@ -583,7 +625,6 @@ export class RaceEngine {
             ctx.restore();
         }
 
-        // 5. Rapids
         ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
         ctx.lineWidth = 2;
         for (const rapid of this.rapids) {
@@ -605,31 +646,25 @@ export class RaceEngine {
             ctx.stroke();
         }
 
-        // 6. Power-Up Boxes
         for (const box of this.powerupBoxes) {
             if (!box.active || box.y < renderStart || box.y > renderEnd) continue;
-
             ctx.save();
             const floatY = Math.sin(this.globalTime * 3 + box.bobOffset) * 5;
             ctx.translate(box.x, box.y + floatY);
-
             ctx.fillStyle = "#FFD700";
             ctx.strokeStyle = "#DAA520";
             ctx.lineWidth = 2;
             const sz = box.size;
             ctx.fillRect(-sz / 2, -sz / 2, sz, sz);
             ctx.strokeRect(-sz / 2, -sz / 2, sz, sz);
-
             ctx.fillStyle = "white";
             ctx.font = "bold 16px Arial";
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
             ctx.fillText("?", 0, 0);
-
             ctx.restore();
         }
 
-        // 7. Obstacles
         for (const rock of this.obstacles) {
             if (rock.y < renderStart || rock.y > renderEnd) continue;
             ctx.save();
@@ -652,7 +687,6 @@ export class RaceEngine {
             ctx.restore();
         }
 
-        // 8. Bank Decorations
         for (const deco of this.decorations) {
             if (deco.y < renderStart || deco.y > renderEnd) continue;
             if (deco.type === "tree") {
@@ -672,14 +706,11 @@ export class RaceEngine {
             }
         }
 
-        // 9. Bridge
         this.drawBridge(ctx);
 
-        // 10. Finish Line
         ctx.fillStyle = "white";
         ctx.fillRect(0, this.finishLineY, width, 20);
 
-        // 11. Ducks
         for (const duck of this.ducks) {
             if (duck.finished) ctx.globalAlpha = 0.6;
             this.drawDuck(ctx, duck);
@@ -742,7 +773,22 @@ export class RaceEngine {
 
     drawDuck(ctx, duck) {
         ctx.save();
-        ctx.translate(duck.x, duck.y);
+
+        if (duck.z > 0) {
+            ctx.save();
+            ctx.translate(duck.x, duck.y);
+            ctx.scale(1, 0.5);
+            const shadowRatio = Math.max(0.2, 1 - duck.z / 200);
+            const shadowRadius = duck.radius * shadowRatio;
+
+            ctx.beginPath();
+            ctx.arc(0, 0, shadowRadius, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(0,0,0, ${0.4 * shadowRatio})`;
+            ctx.fill();
+            ctx.restore();
+        }
+
+        ctx.translate(duck.x, duck.y - duck.z);
 
         const scale = duck.radius / 35;
         const facingRight = duck.vx > 0.1;
@@ -806,7 +852,7 @@ export class RaceEngine {
         ctx.restore();
 
         ctx.save();
-        ctx.translate(duck.x, duck.y);
+        ctx.translate(duck.x, duck.y - duck.z);
         ctx.fillStyle = "white";
         ctx.font = "bold 12px Arial";
         ctx.textAlign = "center";

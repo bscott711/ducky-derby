@@ -133,6 +133,7 @@ export class UIManager {
         return readyCount;
     }
 
+    // --- UPDATED ROOM LIST ---
     updateRoomList(rooms, onJoin) {
         this.publicRoomListEl.innerHTML = "";
         if (rooms.length === 0) {
@@ -147,11 +148,18 @@ export class UIManager {
                 ? room.players[room.hostId].name
                 : "Unknown";
 
+            // FIX: Check status to customize card
+            const isRacing = room.status === "racing";
+            const statusText = isRacing ? " (In Progress)" : "";
+
             const card = document.createElement("div");
             card.className = "room-card";
+            // Dim the card if racing
+            if (isRacing) card.style.opacity = "0.7";
+
             card.innerHTML = `
                 <div class="room-info">
-                    <span style="font-weight:bold; color:#333;">Host: ${hostName}</span>
+                    <span style="font-weight:bold; color:#333;">Host: ${hostName}${statusText}</span>
                     <div style="font-size:0.85em; color:#666;">
                         <span class="room-code-small">Code: ${room.id}</span> • ${playerCount} Players
                     </div>
@@ -160,8 +168,18 @@ export class UIManager {
 
             const joinBtn = document.createElement("button");
             joinBtn.className = "join-small-btn";
-            joinBtn.textContent = "JOIN";
-            joinBtn.onclick = () => onJoin(room.id);
+
+            // FIX: Disable button for racing rooms
+            if (isRacing) {
+                joinBtn.textContent = "RACING";
+                joinBtn.disabled = true;
+                joinBtn.style.backgroundColor = "#ccc";
+                joinBtn.style.cursor = "default";
+            } else {
+                joinBtn.textContent = "JOIN";
+                joinBtn.onclick = () => onJoin(room.id);
+            }
+
             card.appendChild(joinBtn);
             this.publicRoomListEl.appendChild(card);
         }
