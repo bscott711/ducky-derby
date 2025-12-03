@@ -1,4 +1,4 @@
-import { PHYSICS, POWERUPS, RACE_DISTANCE } from "../config.js";
+import { PHYSICS, POWERUPS, RACE_DISTANCE, NET_OFFSET } from "../config.js";
 
 export class Renderer {
     constructor(canvasId) {
@@ -29,7 +29,7 @@ export class Renderer {
             whirlpools,
             rapids,
             powerupBoxes,
-            globalTime,
+            globalTime
         } = state;
 
         const ctx = this.ctx;
@@ -183,18 +183,90 @@ export class Renderer {
         }
 
         this.drawBridge(ctx, riverPath);
+        this.drawFinishLine(ctx, riverPath);
+        this.drawNet(ctx, riverPath);
 
-        ctx.fillStyle = "white";
-        ctx.fillRect(0, this.finishLineY, this.width, 20);
-
-        // 9. Ducks
+        // 10. Ducks
         for (const duck of ducks) {
-            if (duck.finished) ctx.globalAlpha = 0.6;
+            // Note: Removed globalAlpha for finished ducks so they look solid in the net
             this.drawDuck(ctx, duck, globalTime);
-            ctx.globalAlpha = 1.0;
         }
 
         ctx.restore();
+    }
+
+    drawFinishLine(ctx, riverPath) {
+        const finishSegIdx = Math.floor((this.finishLineY + 500) / 5);
+        const finishSeg = riverPath[finishSegIdx];
+        if (finishSeg) {
+            const left = finishSeg.centerX - finishSeg.width / 2;
+            const right = finishSeg.centerX + finishSeg.width / 2;
+            
+            ctx.save();
+            ctx.translate(left, this.finishLineY);
+            
+            const checkSize = 20;
+            const checks = Math.ceil((right - left) / checkSize);
+            for(let i=0; i<checks; i++) {
+                ctx.fillStyle = i % 2 === 0 ? "#FFFFFF" : "#000000";
+                ctx.fillRect(i * checkSize, 0, checkSize, 20);
+            }
+            
+            ctx.fillStyle = "#8B4513";
+            ctx.fillRect(-10, -30, 10, 50); 
+            ctx.fillRect(right - left, -30, 10, 50); 
+            
+            ctx.restore();
+        }
+    }
+
+    drawNet(ctx, riverPath) {
+        const netY = this.finishLineY + NET_OFFSET;
+        const netSegIdx = Math.floor((netY + 500) / 5);
+        const netSeg = riverPath[netSegIdx];
+
+        if (netSeg) {
+            const left = netSeg.centerX - netSeg.width / 2;
+            const right = netSeg.centerX + netSeg.width / 2;
+
+            ctx.save();
+            ctx.translate(left, netY);
+
+            // Posts
+            ctx.fillStyle = "#555";
+            ctx.fillRect(-10, -40, 10, 60);
+            ctx.fillRect(right - left, -40, 10, 60);
+
+            // The Net
+            ctx.beginPath();
+            ctx.rect(0, -20, right - left, 40);
+            ctx.strokeStyle = "rgba(0,0,0,0.3)";
+            ctx.lineWidth = 1;
+            
+            // Cross hatching
+            ctx.save();
+            ctx.clip();
+            for (let i = 0; i < (right - left) + 40; i += 10) {
+                // Diagonals /
+                ctx.moveTo(i, -20);
+                ctx.lineTo(i - 40, 20);
+                // Diagonals \
+                ctx.moveTo(i - 40, -20);
+                ctx.lineTo(i, 20);
+            }
+            ctx.stroke();
+            ctx.restore();
+
+            // Top Rope
+            ctx.beginPath();
+            ctx.moveTo(0, -20);
+            ctx.lineTo(right - left, -20);
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = "#8B0000"; // Red rope
+            ctx.stroke();
+
+            ctx.restore();
+        }
     }
 
     drawBridge(ctx, riverPath) {
@@ -233,12 +305,7 @@ export class Renderer {
 
         ctx.beginPath();
         ctx.moveTo(startX - 10, bridgeY - 15);
-        ctx.quadraticCurveTo(
-            segment.centerX,
-            bridgeY - archHeight * 2 - 15,
-            endX + 10,
-            bridgeY - 15,
-        );
+        ctx.quadraticCurveTo(segment.centerX, bridgeY - archHeight * 2 - 15, endX + 10, bridgeY - 15);
         ctx.lineWidth = 6;
         ctx.strokeStyle = "#CD853F";
         ctx.stroke();
