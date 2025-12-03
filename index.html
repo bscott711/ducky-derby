@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ducky Derby Multiplayer</title>
+    <title>Ducky Derby v0.2.0</title>
 </head>
 <body>
     <div class="sky">
@@ -13,10 +13,22 @@
         </div>
     </div>
 
-    <div class="water-container" id="track">
-        <div class="wave" id="wave-1"></div>
-        <div class="wave" id="wave-2"></div>
-        <div id="game-world"></div>
+    <canvas id="game-canvas"></canvas>
+
+    <div id="countdown-overlay" class="hidden">3</div>
+
+    <div id="chat-overlay" class="hidden">
+        <div class="chat-header">
+            <span>💬 Spectator Chat</span>
+            <button id="chat-toggle-btn">−</button>
+        </div>
+        <div id="chat-content-wrapper">
+            <div id="chat-messages"></div>
+            <div class="chat-input-row">
+                <input type="text" id="chat-input" placeholder="Say something..." maxlength="50">
+                <button id="send-chat-btn">Send</button>
+            </div>
+        </div>
     </div>
 
     <div id="game-ui">
@@ -59,8 +71,20 @@
             <h2 id="room-code-header">ROOM: ????</h2>
             <div class="room-code-display" id="lobby-code-display">????</div>
             
-            <h3>Pick Your Duck</h3>
-            <div class="duck-grid" id="duck-selection"></div>
+            <h3>Customize Your Duck</h3>
+            <div class="customization-container">
+                <div id="duck-preview" class="duck-preview-box"></div>
+                <div class="duck-controls">
+                    <div class="control-group">
+                        <label>Body</label>
+                        <input type="color" id="color-body-input" value="#FFD700">
+                    </div>
+                    <div class="control-group">
+                        <label>Accent</label>
+                        <input type="color" id="color-accent-input" value="#FF8C00">
+                    </div>
+                </div>
+            </div>
 
             <h3>Racers Ready:</h3>
             <div class="player-list" id="lobby-player-list"></div>
@@ -69,10 +93,7 @@
             <p id="waiting-msg" class="info-msg">Waiting for host to start...</p>
             
             <button class="action-btn hidden" id="start-race-btn" disabled>START RACE</button>
-            
-            <button class="action-btn hidden" id="delete-room-btn" style="background-color: #e74c3c; margin-top: 10px;">
-                CLOSE ROOM
-            </button>
+            <button class="action-btn hidden" id="delete-room-btn" style="background-color: #e74c3c; margin-top: 10px;">CLOSE ROOM</button>
         </div>
 
         <div class="panel hidden" id="results-panel">

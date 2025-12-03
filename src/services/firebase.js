@@ -1,13 +1,17 @@
 import { getApp, getApps, initializeApp } from "firebase/app";
 import { getAuth, signInAnonymously } from "firebase/auth";
 import {
+    addDoc,
     collection,
-    deleteDoc, // <--- Imported deleteDoc
+    deleteDoc,
     doc,
     getDoc,
     getFirestore,
     initializeFirestore,
+    limit,
     onSnapshot,
+    orderBy,
+    query,
     setDoc,
     updateDoc,
 } from "firebase/firestore";
@@ -22,20 +26,14 @@ const firebaseConfig = {
     measurementId: "G-G50XQ0HY6X",
 };
 
-// 1. Singleton: Get existing app or initialize a new one
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
-// 2. Connection Logic (With Logging)
 let db;
 try {
-    // EXPLICITLY set false to override any defaults or cached behaviors
-    db = initializeFirestore(app, {
-        experimentalForceLongPolling: false,
-    });
+    db = initializeFirestore(app, { experimentalForceLongPolling: false });
     console.log("🔥 Firebase: Initialized new Firestore instance (WebSockets Enabled)");
 } catch (e) {
-    // If this fails, it means an instance already exists (hot-reload)
     db = getFirestore(app);
     console.log("♻️ Firebase: Reusing existing Firestore instance");
 }
@@ -62,25 +60,23 @@ export const authService = {
 export const dbService = {
     subscribeToPublicRooms(callback) {
         const racesCollection = collection(db, COLLECTION_PATH);
-        return onSnapshot(
-            racesCollection,
-            (snapshot) => {
-                const rooms = [];
-                for (const doc of snapshot.docs) {
-                    const data = doc.data();
-                    if (data.status === "lobby" && data.isPublic === true) {
-                        rooms.push({ id: doc.id, ...data });
-                    }
+        return onSnapshot(racesCollection, (snapshot) => {
+            const rooms = [];
+            for (const doc of snapshot.docs) {
+                const data = doc.data();
+                // FIX: Show both Lobby AND Racing rooms so they don't "disappear"
+                if (
+                    data.isPublic === true &&
+                    (data.status === "lobby" || data.status === "racing")
+                ) {
+                    rooms.push({ id: doc.id, ...data });
                 }
-                callback(rooms);
-            },
-            (error) => {
-                console.error("Error subscribing to public rooms:", error);
-            },
-        );
+            }
+            callback(rooms);
+        });
     },
 
-    async createRoom(hostId, hostName, isPublic) {
+    async createRoom(hostId, hostName, isPublic, duckConfig) {
         const roomId = Math.random().toString(36).substring(2, 6).toUpperCase();
         const raceRef = doc(db, COLLECTION_PATH, roomId);
         const initialData = {
@@ -89,7 +85,11 @@ export const dbService = {
             isPublic,
             seed: 0,
             players: {
-                [hostId]: { name: hostName, duckIndex: -1 },
+                [hostId]: {
+                    name: hostName,
+                    color: duckConfig.body,
+                    config: duckConfig,
+                },
             },
             createdAt: Date.now(),
         };
@@ -97,7 +97,7 @@ export const dbService = {
         return roomId;
     },
 
-    async joinRoom(roomId, userId, userName) {
+    async joinRoom(roomId, userId, userName, duckConfig) {
         const raceRef = doc(db, COLLECTION_PATH, roomId);
         const snap = await getDoc(raceRef);
 
@@ -106,17 +106,17 @@ export const dbService = {
         if (data.status !== "lobby") throw new Error("Race already started");
 
         const players = data.players || {};
-        // Don't overwrite existing player data if just reconnecting
         if (!players[userId]) {
-            players[userId] = { name: userName, duckIndex: -1 };
+            players[userId] = {
+                name: userName,
+                color: duckConfig.body,
+                config: duckConfig,
+            };
         }
-
         await updateDoc(raceRef, { players });
-        // RETURN hostId so we can check if we own the room
         return data.hostId;
     },
 
-    // NEW: Delete Room Function
     async deleteRoom(roomId) {
         const raceRef = doc(db, COLLECTION_PATH, roomId);
         await deleteDoc(raceRef);
@@ -124,27 +124,21 @@ export const dbService = {
 
     subscribeToRoom(roomId, callback) {
         const raceRef = doc(db, COLLECTION_PATH, roomId);
-        return onSnapshot(
-            raceRef,
-            (docSnap) => {
-                if (docSnap.exists()) {
-                    callback(docSnap.data());
-                } else {
-                    // Notify that the room is gone (deleted)
-                    callback(null);
-                }
-            },
-            (error) => {
-                console.error("Error subscribing to room:", error);
-            },
-        );
+        return onSnapshot(raceRef, (docSnap) => {
+            if (docSnap.exists()) {
+                callback(docSnap.data());
+            } else {
+                callback(null);
+            }
+        });
     },
 
-    async updateDuckSelection(roomId, userId, duckIndex, currentPlayers) {
+    async updatePlayerConfig(roomId, userId, duckConfig, currentPlayers) {
         const raceRef = doc(db, COLLECTION_PATH, roomId);
         const players = { ...currentPlayers };
         if (players[userId]) {
-            players[userId].duckIndex = duckIndex;
+            players[userId].color = duckConfig.body;
+            players[userId].config = duckConfig;
             await updateDoc(raceRef, { players });
         }
     },
@@ -157,5 +151,24 @@ export const dbService = {
     async resetLobby(roomId) {
         const raceRef = doc(db, COLLECTION_PATH, roomId);
         await updateDoc(raceRef, { status: "lobby" });
+    },
+
+    async sendChatMessage(roomId, userId, userName, text) {
+        const chatRef = collection(db, COLLECTION_PATH, roomId, "messages");
+        await addDoc(chatRef, {
+            userId,
+            userName,
+            text,
+            timestamp: Date.now(),
+        });
+    },
+
+    subscribeToChat(roomId, callback) {
+        const chatRef = collection(db, COLLECTION_PATH, roomId, "messages");
+        const q = query(chatRef, orderBy("timestamp", "asc"), limit(50));
+        return onSnapshot(q, (snapshot) => {
+            const messages = snapshot.docs.map((doc) => doc.data());
+            callback(messages);
+        });
     },
 };
