@@ -9,6 +9,21 @@ export const PHYSICS = {
     COLLISION_DAMPING: 0.8,
     WALL_DAMPING: 0.6,
     TURBULENCE: 0.2,
+
+    // NEW: Rapids & Rocks
+    RAPID_SPEED_BOOST: 0.3, // Extra speed in rapids
+    RAPID_TURBULENCE: 0.8, // High chaos in rapids
+    ROCK_RADIUS_MIN: 15,
+    ROCK_RADIUS_MAX: 30,
+};
+
+// NEW: Generation Settings
+export const LEVEL_GEN = {
+    OBSTACLE_DENSITY: 0.002, // Chance per pixel of river length
+    RAPID_FREQUENCY: 0.0005, // Chance of a rapid section starting
+    RAPID_LENGTH: 600, // How long a rapid lasts
+    TREE_DENSITY: 0.01, // Trees on the bank
+    GRASS_DENSITY: 0.05, // Texture dots on the bank
 };
 
 export const DUCK_PALETTES = [
@@ -24,8 +39,7 @@ export const DUCK_PALETTES = [
     { name: "White", body: "#FFFFFF", beak: "#FFA500" },
 ];
 
-// --- NEW: NPC Configuration ---
-export const MIN_RACERS = 20; // Ensure at least 20 ducks are always in the race
+export const MIN_RACERS = 20;
 
 export const NPC_NAMES = [
     "Quackers",
