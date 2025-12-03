@@ -1,18 +1,19 @@
 import "./styles.css";
-// import { RaceEngine } from "./game/RaceEngine.js"; // Disabled for Phase 1
+import { RaceEngine } from "./game/RaceEngine.js";
 import { authService, dbService } from "./services/firebase.js";
 import { UIManager } from "./ui/UIManager.js";
 
 const ui = new UIManager();
-// const engine = new RaceEngine(ui);
+const engine = new RaceEngine(ui);
 
 const state = {
     user: null,
     room: null,
     isHost: false,
-    raceStatus: "lobby",
+    raceStatus: "lobby", // lobby, racing, finished
     players: {},
     chatUnsub: null,
+    controlsInitialized: false,
 };
 
 // --- HELPER: Random Color Generator ---
@@ -42,6 +43,7 @@ function debounce(func, wait) {
 authService.onAuthStateChanged((user) => {
     if (user) {
         state.user = user;
+        // Load public rooms
         dbService.subscribeToPublicRooms((rooms) => {
             if (!state.room) ui.updateRoomList(rooms, (id) => handleJoinRoom(id));
         });
@@ -83,8 +85,12 @@ async function handleJoinRoom(roomId) {
 }
 
 document.getElementById("delete-room-btn").addEventListener("click", async () => {
-    if (confirm("Close room?")) {
-        await dbService.deleteRoom(state.room);
+    if (confirm("Are you sure you want to close this room? Everyone will be kicked.")) {
+        try {
+            await dbService.deleteRoom(state.room);
+        } catch (e) {
+            console.error("Failed to delete room:", e);
+        }
     }
 });
 
@@ -115,11 +121,6 @@ function handleEnterLobby(roomId, isHost) {
     }
 
     // --- SETUP CUSTOMIZATION ---
-
-    // 1. Get my current config from state (it was set during create/join)
-    // We need to fetch it freshly from DB or wait for first update,
-    // but initially we can rely on what we just sent or wait for the subscription to fire.
-    // Ideally, we init controls once we have the player data.
 
     // Create a debounced updater
     const debouncedUpdate = debounce((newConfig) => {
@@ -155,22 +156,20 @@ function handleEnterLobby(roomId, isHost) {
             state.controlsInitialized = true; // Flag to prevent re-init
         }
 
-        // If someone ELSE updates, we don't want to re-init OUR controls,
-        // but we DO want to see their color change in the player list (handled by updateLobbyPlayers)
-
+        // Check Race Status Changes
         if (data.status === "racing" && state.raceStatus === "lobby") {
-            console.log("RACE STARTED!");
-            state.raceStatus = "racing";
-            ui.showPanel("game");
+            console.log("🏁 Race Signal Received! Seed:", data.seed);
+            const raceSeed = data.seed || 123456;
+            startRace(raceSeed);
         } else if (data.status === "lobby" && state.raceStatus !== "lobby") {
+            // Soft reset (back to lobby for rematch)
             state.raceStatus = "lobby";
             ui.showPanel("lobby");
         }
     });
 }
 
-// ... rest of startRace, backToLobby, resetToLobby (same as previous) ...
-
+// --- GAME STATE ---
 document.getElementById("start-race-btn").addEventListener("click", async () => {
     if (state.isHost) {
         const seed = Math.floor(Math.random() * 1000000);
@@ -179,14 +178,51 @@ document.getElementById("start-race-btn").addEventListener("click", async () => 
 });
 
 document.getElementById("back-to-lobby-btn").addEventListener("click", async () => {
-    if (state.isHost) await dbService.resetLobby(state.room);
+    if (state.isHost) {
+        await dbService.resetLobby(state.room);
+    }
 });
+
+function startRace(seed) {
+    console.log("🚀 Starting Client Engine with seed:", seed);
+    state.raceStatus = "racing";
+    ui.showPanel("game");
+
+    // PASS state.players TO THE ENGINE
+    engine.start(seed, state.players, (finishOrder) => {
+        state.raceStatus = "finished";
+        console.log("🏆 Race Finished", finishOrder);
+
+        setTimeout(() => {
+            ui.showPanel("results");
+
+            // Find my rank based on the finishOrder array
+            const myDuckIndex = finishOrder.findIndex(
+                (d) => d.name === state.players[state.user.uid]?.name,
+            );
+
+            // Pass updated data structure to UI
+            ui.showResults(finishOrder, state.players, myDuckIndex, state.user.uid);
+
+            const backBtn = document.getElementById("back-to-lobby-btn");
+            if (state.isHost) {
+                backBtn.textContent = "Back to Lobby";
+                backBtn.disabled = false;
+            } else {
+                backBtn.textContent = "Waiting for Host...";
+                backBtn.disabled = true;
+            }
+        }, 1000);
+    });
+}
 
 function resetToLobby() {
     state.raceStatus = "lobby";
-    state.room = null;
+    state.room = null; // Clear room
     state.isHost = false;
     state.controlsInitialized = false; // Reset control flag
+
     if (state.chatUnsub) state.chatUnsub();
-    ui.showPanel("start");
+    engine.stop();
+    ui.showPanel("start"); // Go back to START panel, not lobby panel
 }
