@@ -8,12 +8,11 @@ export class RaceEngine {
 
         this.animationId = null;
         this.ducks = [];
-        this.riverPath = []; // Array of {x, y, width}
+        this.riverPath = [];
         this.cameraY = 0;
         this.finishLineY = RACE_DISTANCE;
         this.raceFinished = false;
 
-        // Handle resizing
         window.addEventListener("resize", () => this.resize());
         this.resize();
     }
@@ -24,10 +23,7 @@ export class RaceEngine {
     }
 
     start(seedVal, players, onFinish) {
-        // FIX: Use a local variable instead of reassigning the parameter 'seedVal'
         let currentSeed = seedVal;
-
-        // Safety check for seed
         if (!currentSeed) {
             console.warn("⚠️ No seed provided, using fallback");
             currentSeed = Date.now();
@@ -38,29 +34,23 @@ export class RaceEngine {
         this.raceFinished = false;
         this.cameraY = 0;
 
-        // 1. Generate the River Path
         this.generateRiver();
 
-        // 2. Spawn Ducks (Drop them in)
         this.ducks = [];
         const playerList = Object.values(players);
         const startX = this.canvas.width / 2;
 
-        // FIX: Use for...of instead of forEach
         for (const p of playerList) {
-            // Random jitter so they don't spawn perfectly inside each other
             const jitterX = (this.rng() - 0.5) * 100;
             const jitterY = (this.rng() - 0.5) * 100;
 
             this.ducks.push({
-                id: p.name, // or uid
+                id: p.name,
                 name: p.name,
                 color: p.config.body,
                 beak: p.config.beak,
-
-                // Physics Properties
                 x: startX + jitterX,
-                y: jitterY - 200, // Spawn above screen
+                y: jitterY - 200,
                 vx: 0,
                 vy: 0,
                 radius: PHYSICS.DUCK_RADIUS,
@@ -69,7 +59,6 @@ export class RaceEngine {
             });
         }
 
-        // 3. Start Loop
         this.lastTime = performance.now();
         this.loop();
     }
@@ -77,14 +66,11 @@ export class RaceEngine {
     generateRiver() {
         this.riverPath = [];
         const center = this.canvas.width / 2;
-        const amplitude = 300; // How wide the river curves
-        const frequency = 0.002; // How fast it curves
+        const amplitude = 300;
+        const frequency = 0.002;
 
-        // Generate points every 50px down to the finish line + buffer
         for (let y = -500; y < this.finishLineY + 2000; y += 50) {
-            // Simple Sine Wave River
             const curve = Math.sin(y * frequency) * amplitude;
-            // Add some "noise" to make it look organic
             const noise = (this.rng() - 0.5) * 50;
 
             this.riverPath.push({
@@ -97,7 +83,8 @@ export class RaceEngine {
 
     loop() {
         const now = performance.now();
-        const dt = Math.min((now - this.lastTime) / 1000, 0.1); // Cap dt for safety
+        // Calculate dt in seconds
+        const dt = Math.min((now - this.lastTime) / 1000, 0.1);
         this.lastTime = now;
 
         this.updatePhysics(dt);
@@ -109,28 +96,33 @@ export class RaceEngine {
     }
 
     updatePhysics(dt) {
+        // Create a timeScale where 1.0 = 60fps
+        // This makes our Physics numbers easier to reason about (e.g., 0.5 pixels per frame)
+        const timeScale = dt * 60;
+
         let finishedCount = 0;
 
         // 1. Move Ducks
-        // FIX: Use for...of instead of forEach
         for (const duck of this.ducks) {
             if (duck.finished) {
                 finishedCount++;
                 continue;
             }
 
-            // A. Apply Forces (Gravity/Flow)
-            // Water pushes them down
-            duck.vy += PHYSICS.FLOW_SPEED * dt * 60;
-            // Turbulence (random left/right push)
-            duck.vx += (this.rng() - 0.5) * PHYSICS.TURBULENCE * 60;
-            // Friction (Water Drag)
-            duck.vx *= 0.98;
-            duck.vy *= 0.98;
+            // A. Apply Forces
+            // We multiply by timeScale to ensure movement is consistent across different frame rates
+            duck.vy += PHYSICS.FLOW_SPEED * timeScale;
+            duck.vx += (this.rng() - 0.5) * PHYSICS.TURBULENCE * timeScale;
+
+            // Friction
+            // We apply friction scaled by time to prevent jitter
+            const friction = 0.96 ** timeScale;
+            duck.vx *= friction;
+            duck.vy *= friction;
 
             // B. Apply Velocity
-            duck.x += duck.vx * dt * 60;
-            duck.y += duck.vy * dt * 60;
+            duck.x += duck.vx * timeScale;
+            duck.y += duck.vy * timeScale;
 
             // C. Check Finish
             if (duck.y >= this.finishLineY && !duck.finished) {
@@ -139,25 +131,22 @@ export class RaceEngine {
             }
         }
 
-        // 2. Resolve Collisions (Elastic Duck-to-Duck)
-        // Simple O(N^2) check - fine for < 500 ducks
+        // 2. Resolve Collisions
         for (let i = 0; i < this.ducks.length; i++) {
             for (let j = i + 1; j < this.ducks.length; j++) {
                 this.resolveCollision(this.ducks[i], this.ducks[j]);
             }
         }
 
-        // 3. Resolve Wall Collisions (River Banks)
-        // FIX: Use for...of instead of forEach
+        // 3. Resolve Wall Collisions
         for (const duck of this.ducks) {
             this.resolveWallCollision(duck);
         }
 
-        // 4. Update Camera (Follow Leader)
+        // 4. Update Camera
         const leaderY = Math.max(...this.ducks.map((d) => d.y));
         const targetCamY = leaderY - this.canvas.height * 0.4;
-        // Smooth camera panning
-        this.cameraY += (targetCamY - this.cameraY) * 0.1;
+        this.cameraY += (targetCamY - this.cameraY) * 0.05 * timeScale; // Smooth camera
 
         // 5. Check Race End
         if (finishedCount === this.ducks.length) {
@@ -172,30 +161,27 @@ export class RaceEngine {
         const minDist = d1.radius + d2.radius;
 
         if (distance < minDist) {
-            // Physics: Elastic Collision Response
             const angle = Math.atan2(dy, dx);
             const sin = Math.sin(angle);
             const cos = Math.cos(angle);
 
             // Rotate velocities
-            const v1 = { x: 0, y: 0 };
-            const v2 = { x: 0, y: 0 };
-
-            // Velocity in rotated frame
             const v1r = d1.vx * cos + d1.vy * sin;
             const v1t = -d1.vx * sin + d1.vy * cos;
             const v2r = d2.vx * cos + d2.vy * sin;
             const v2t = -d2.vx * sin + d2.vy * cos;
 
-            // Swap radial velocities (for equal mass)
+            // Swap radial velocities (elastic bounce)
+            const v1rFinal = v2r * PHYSICS.COLLISION_DAMPING;
+            const v2rFinal = v1r * PHYSICS.COLLISION_DAMPING;
 
             // Rotate back
-            d1.vx = v2r * cos - v1t * sin;
-            d1.vy = v2r * sin + v1t * cos;
-            d2.vx = v1r * cos - v2t * sin;
-            d2.vy = v1r * sin + v2t * cos;
+            d1.vx = v1rFinal * cos - v1t * sin;
+            d1.vy = v1rFinal * sin + v1t * cos;
+            d2.vx = v2rFinal * cos - v2t * sin;
+            d2.vy = v2rFinal * sin + v2t * cos;
 
-            // Seperate overlaps to prevent sticking
+            // Separate
             const overlap = minDist - distance;
             const separationX = overlap * cos * 0.5;
             const separationY = overlap * sin * 0.5;
@@ -207,9 +193,7 @@ export class RaceEngine {
     }
 
     resolveWallCollision(duck) {
-        // Find river segment for this duck's Y
-        // We look up the closest generated point
-        const segmentIndex = Math.floor((duck.y + 500) / 50); // Offset based on generation loop
+        const segmentIndex = Math.floor((duck.y + 500) / 50);
         const segment = this.riverPath[segmentIndex] || this.riverPath[this.riverPath.length - 1];
 
         if (!segment) return;
@@ -217,15 +201,12 @@ export class RaceEngine {
         const leftBank = segment.centerX - segment.width / 2;
         const rightBank = segment.centerX + segment.width / 2;
 
-        // Hit Left Wall
         if (duck.x - duck.radius < leftBank) {
             duck.x = leftBank + duck.radius;
-            duck.vx *= -PHYSICS.WALL_DAMPING;
-        }
-        // Hit Right Wall
-        else if (duck.x + duck.radius > rightBank) {
+            duck.vx = Math.abs(duck.vx) * PHYSICS.WALL_DAMPING + 1; // Slight bounce push
+        } else if (duck.x + duck.radius > rightBank) {
             duck.x = rightBank - duck.radius;
-            duck.vx *= -PHYSICS.WALL_DAMPING;
+            duck.vx = -Math.abs(duck.vx) * PHYSICS.WALL_DAMPING - 1;
         }
     }
 
@@ -235,43 +216,32 @@ export class RaceEngine {
         const height = this.canvas.height;
 
         ctx.clearRect(0, 0, width, height);
-
         ctx.save();
-        // Apply Camera Transform
         ctx.translate(0, -this.cameraY);
 
-        // 1. Draw River (Water)
-        // We draw a large polygon connecting the banks
+        // 1. River
         ctx.beginPath();
-        ctx.fillStyle = "#1E90FF"; // Deep water blue
-
-        // Left Bank Points
-        // FIX: Use for...of instead of forEach
-        for (const p of this.riverPath) {
-            ctx.lineTo(p.centerX - p.width / 2, p.y);
-        }
-        // Right Bank Points (reversed)
-        for (let i = this.riverPath.length - 1; i >= 0; i--) {
-            const p = this.riverPath[i];
-            ctx.lineTo(p.centerX + p.width / 2, p.y);
-        }
+        ctx.fillStyle = "#1E90FF";
+        for (const p of this.riverPath) ctx.lineTo(p.centerX - p.width / 2, p.y);
+        for (let i = this.riverPath.length - 1; i >= 0; i--)
+            ctx.lineTo(
+                this.riverPath[i].centerX + this.riverPath[i].width / 2,
+                this.riverPath[i].y,
+            );
         ctx.fill();
 
-        // 2. Draw Banks (Grass)
-        // Simple visualization: Large rectangles on sides, covering "behind" the river
-        ctx.globalCompositeOperation = "destination-over"; // Draw BEHIND water
-        ctx.fillStyle = "#228B22"; // Forest Green
-        ctx.fillRect(0, this.cameraY, width, height); // Fill entire screen background
-        ctx.globalCompositeOperation = "source-over"; // Reset
+        // 2. Banks
+        ctx.globalCompositeOperation = "destination-over";
+        ctx.fillStyle = "#228B22";
+        ctx.fillRect(0, this.cameraY, width, height);
+        ctx.globalCompositeOperation = "source-over";
 
-        // 3. Draw Finish Line
+        // 3. Finish Line
         ctx.fillStyle = "white";
         ctx.fillRect(0, this.finishLineY, width, 20);
 
-        // 4. Draw Ducks
-        // FIX: Use for...of instead of forEach
+        // 4. Ducks
         for (const duck of this.ducks) {
-            // Body
             ctx.beginPath();
             ctx.arc(duck.x, duck.y, duck.radius, 0, Math.PI * 2);
             ctx.fillStyle = duck.color;
@@ -280,18 +250,20 @@ export class RaceEngine {
             ctx.strokeStyle = "rgba(0,0,0,0.3)";
             ctx.stroke();
 
-            // Beak (Directional?)
-            // For now just a circle on top
+            // Beak
             ctx.beginPath();
-            ctx.arc(duck.x, duck.y - 5, 5, 0, Math.PI * 2);
+            ctx.arc(duck.x, duck.y - 4, 4, 0, Math.PI * 2);
             ctx.fillStyle = duck.beak;
             ctx.fill();
 
-            // Name Tag
+            // Name
             ctx.fillStyle = "white";
-            ctx.font = "12px Arial";
+            ctx.font = "bold 12px Arial";
             ctx.textAlign = "center";
-            ctx.fillText(duck.name, duck.x, duck.y - 20);
+            ctx.strokeStyle = "black";
+            ctx.lineWidth = 3;
+            ctx.strokeText(duck.name, duck.x, duck.y - 18);
+            ctx.fillText(duck.name, duck.x, duck.y - 18);
         }
 
         ctx.restore();
@@ -299,16 +271,12 @@ export class RaceEngine {
 
     endRace() {
         this.raceFinished = true;
-        // Sort by finish time
         this.ducks.sort((a, b) => a.finishTime - b.finishTime);
-
-        // Map back to format expected by UI
-        const finishOrder = this.ducks.map((d, i) => ({
-            originalIndex: 0, // Not used in infinite mode
+        const finishOrder = this.ducks.map((d) => ({
+            originalIndex: 0,
             config: { body: d.color, beak: d.beak },
             name: d.name,
         }));
-
         if (this.onFinishCallback) this.onFinishCallback(finishOrder);
     }
 
