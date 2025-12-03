@@ -33,7 +33,6 @@ export class RaceEngine {
 
         this.followId = null;
 
-        // NEW: Post-race timer for net pile-up
         this.postRaceTimer = 0;
 
         this.inputs = { left: false, right: false };
@@ -58,7 +57,7 @@ export class RaceEngine {
         this.raceFinished = false;
         this.globalTime = 0;
         this.accumulator = 0;
-        this.postRaceTimer = 0; // Reset timer
+        this.postRaceTimer = 0;
 
         const levelGen = new LevelGenerator(currentSeed);
         const levelData = levelGen.generate();
@@ -248,10 +247,12 @@ export class RaceEngine {
                 }
             }
             if (duck.cooldownTimer > 0) duck.cooldownTimer -= timeScale;
+
+            // FIX: Net Collision - High Friction to prevent sliding
             if (duck.y + duck.radius > netY) {
                 duck.y = netY - duck.radius;
                 duck.vy = 0;
-                duck.vx *= 0.9;
+                duck.vx *= 0.2; // Very strong friction (Sticky Net)
             } else {
                 const segmentIndex = Math.floor((duck.y + 500) / 5);
                 const currentSeg = this.riverPath[segmentIndex];
@@ -390,7 +391,7 @@ export class RaceEngine {
             const viewOffset = 220;
             let targetCamY = targetDuck.y + viewOffset;
 
-            // FIX: Allow scrolling down to net (Finish + Net Offset - small buffer)
+            // Clamp camera to net area
             const maxCamY = this.finishLineY + NET_OFFSET - 200;
 
             if (targetCamY > maxCamY) {
@@ -404,9 +405,9 @@ export class RaceEngine {
             this.cameraY += (targetCamY - this.cameraY) * 0.05;
         }
 
-        // NEW: End Race only after delay
         if (finishedCount === this.ducks.length) {
-            if (this.postRaceTimer === 0) this.postRaceTimer = 180; // Start 3s timer (60hz * 3)
+            // FIX: Longer end delay (5s) to allow pile up
+            if (this.postRaceTimer === 0) this.postRaceTimer = 300;
             this.postRaceTimer--;
 
             if (this.postRaceTimer <= 0) {
@@ -415,7 +416,7 @@ export class RaceEngine {
         }
     }
 
-    // ... [Helpers] ...
+    // ... [Helpers remain the same] ...
     collectPowerup(duck, box) {
         box.active = false;
         const typeIndex = Math.floor(this.rng() * POWERUPS.TYPES.length);

@@ -12,7 +12,7 @@ export const PHYSICS = {
     TURBULENCE: 0.2,
     GRAVITY: 0.8,
 
-    // Steering (Kept to prevent NaN errors in RaceEngine)
+    // Steering
     STEER_FORCE: 0.1,
 
     // Fixed Logical Width (The "Universe" size)
@@ -55,14 +55,14 @@ export const POWERUPS = {
     TYPES: ["GIANT", "GHOST", "BOUNCY", "SPEED", "ANCHOR"],
 };
 
-// NEW: Hunter Configuration
+// Hunter Configuration
 export const HUNTERS = {
     SPAWN_RATE: 0.0015,
     RANGE: 250,
-    COOLDOWN: 180, // 3 seconds (60hz)
-    DURATION: 120, // 2 seconds of penalty
-    DRAG: 0.85, // Severe slowdown
-    COLOR: "#e74c3c", // Red
+    COOLDOWN: 180,
+    DURATION: 120,
+    DRAG: 0.85,
+    COLOR: "#e74c3c",
 };
 
 // Generation Settings

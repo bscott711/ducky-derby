@@ -191,7 +191,6 @@ export class Renderer {
         for (const hunter of hunters) {
             if (hunter.y < renderStart || hunter.y > renderEnd) continue;
 
-            // Hunter Body
             ctx.beginPath();
             ctx.arc(hunter.x, hunter.y, 10, 0, Math.PI * 2);
             ctx.fillStyle = HUNTERS.COLOR;
@@ -200,7 +199,6 @@ export class Renderer {
             ctx.lineWidth = 2;
             ctx.stroke();
 
-            // Laser Shot
             if (hunter.activeShot > 0) {
                 ctx.beginPath();
                 ctx.moveTo(hunter.x, hunter.y);
@@ -279,7 +277,6 @@ export class Renderer {
             ctx.restore();
         }
     }
-
     drawBridge(ctx, riverPath) {
         const bridgeY = -200;
         const segmentIndex = Math.floor((bridgeY + 500) / 5);
@@ -337,18 +334,25 @@ export class Renderer {
             ctx.fill();
             ctx.restore();
         }
-        ctx.translate(duck.x, duck.y - duck.z);
+
+        // NEW: Visual Bobbing at Net
+        let bobY = 0;
+        if (duck.y > this.finishLineY) {
+            // Pseudo-random phase based on duck name length to desync
+            const phase = duck.name.length;
+            bobY = Math.sin(globalTime * 5 + phase) * 3;
+        }
+
+        ctx.translate(duck.x, duck.y - duck.z + bobY);
         const scale = duck.radius / 35;
         const facingRight = duck.vx > 0.1;
         ctx.scale(facingRight ? -scale : scale, scale);
         ctx.translate(-50, -60);
 
-        // Ghost Status
         if (duck.effect === "GHOST" || duck.effect === "HUNTED") {
             ctx.globalAlpha = 0.5;
         }
 
-        // NEW: FLIP IF HUNTED (Upside Down!)
         if (duck.effect === "HUNTED") {
             ctx.scale(1, -1);
         }
@@ -403,7 +407,7 @@ export class Renderer {
         ctx.fill();
         ctx.restore();
         ctx.save();
-        ctx.translate(duck.x, duck.y - duck.z);
+        ctx.translate(duck.x, duck.y - duck.z + bobY);
         ctx.fillStyle = "white";
         ctx.font = "bold 12px Arial";
         ctx.textAlign = "center";
@@ -415,7 +419,7 @@ export class Renderer {
             if (duck.effect === "ANCHOR") icon = "⚓";
             if (duck.effect === "BOUNCY") icon = "🏀";
             if (duck.effect === "GHOST") icon = "👻";
-            if (duck.effect === "HUNTED") icon = "⚠️";
+            if (duck.effect === "HUNTED") icon = "💀";
             if (icon) {
                 ctx.font = "20px Arial";
                 ctx.fillText(icon, 0, -duck.radius - 25);
