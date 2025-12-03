@@ -210,16 +210,13 @@ export class Renderer {
             }
         }
 
-        // Draw these bottom-layer elements first
         this.drawBridge(ctx, riverPath);
         this.drawFinishLine(ctx, riverPath);
 
-        // 10. Ducks (Now drawn BEFORE the net so they are "under" it)
         for (const duck of ducks) {
             this.drawDuck(ctx, duck, globalTime);
         }
 
-        // 11. Net (Drawn LAST to be on top)
         this.drawNet(ctx, riverPath);
 
         ctx.restore();
@@ -256,12 +253,10 @@ export class Renderer {
             ctx.save();
             ctx.translate(left, netY);
 
-            // Posts
             ctx.fillStyle = "#555";
             ctx.fillRect(-10, -40, 10, 60);
             ctx.fillRect(right - left, -40, 10, 60);
 
-            // The Net Body
             ctx.beginPath();
             ctx.rect(0, -20, right - left, 40);
             ctx.strokeStyle = "rgba(0,0,0,0.3)";
@@ -278,7 +273,6 @@ export class Renderer {
             ctx.stroke();
             ctx.restore();
 
-            // Top Rope (Red)
             ctx.beginPath();
             ctx.moveTo(0, -20);
             ctx.lineTo(right - left, -20);
@@ -348,7 +342,6 @@ export class Renderer {
             ctx.restore();
         }
 
-        // Bobbing Logic (only if passed finish line)
         let bobY = 0;
         if (duck.y > this.finishLineY) {
             const phase = duck.name.length;
@@ -357,7 +350,10 @@ export class Renderer {
 
         ctx.translate(duck.x, duck.y - duck.z + bobY);
         const scale = duck.radius / 35;
-        const facingRight = duck.vx > 0.1;
+
+        // FIX: Use stored facing direction from state
+        const facingRight = duck.facingRight;
+
         ctx.scale(facingRight ? -scale : scale, scale);
         ctx.translate(-50, -60);
 
@@ -373,6 +369,7 @@ export class Renderer {
             const pulse = 1 + Math.sin(globalTime * 20) * 0.1;
             ctx.scale(pulse, 1 / pulse);
         }
+
         // Body
         ctx.beginPath();
         ctx.moveTo(20, 60);
@@ -431,7 +428,7 @@ export class Renderer {
             if (duck.effect === "ANCHOR") icon = "⚓";
             if (duck.effect === "BOUNCY") icon = "🏀";
             if (duck.effect === "GHOST") icon = "👻";
-            if (duck.effect === "HUNTED") icon = "💀"; // Fixed Icon
+            if (duck.effect === "HUNTED") icon = "💀";
             if (icon) {
                 ctx.font = "20px Arial";
                 ctx.fillText(icon, 0, -duck.radius - 25);
