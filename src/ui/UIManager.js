@@ -28,6 +28,21 @@ export class UIManager {
         this.waveEls = document.querySelectorAll(".wave");
         this.cloudLayerEl = document.getElementById("cloud-layer");
 
+        // NEW: Camera Toggle Button
+        this.camBtn = document.createElement("button");
+        this.camBtn.className = "action-btn";
+        // Styling to make it float in the corner
+        this.camBtn.style.position = "absolute";
+        this.camBtn.style.top = "20px";
+        this.camBtn.style.right = "20px";
+        this.camBtn.style.width = "auto";
+        this.camBtn.style.padding = "10px 20px";
+        this.camBtn.style.zIndex = "1000";
+        this.camBtn.style.fontSize = "0.9rem";
+        this.camBtn.textContent = "🎥 Camera: Auto";
+        this.gameUI.appendChild(this.camBtn);
+        this.camBtn.classList.add("hidden");
+
         this.initInternalListeners();
     }
 
@@ -41,6 +56,14 @@ export class UIManager {
 
         if (this.chatToggleBtn) this.chatToggleBtn.onclick = toggleChat;
         if (this.chatHeader) this.chatHeader.onclick = toggleChat;
+    }
+
+    // NEW: Allow main.js to hook into the camera click
+    setupCameraListener(callback) {
+        this.camBtn.onclick = () => {
+            const nextMode = callback(); // main.js logic returns the new label
+            this.camBtn.textContent = `🎥 Camera: ${nextMode}`;
+        };
     }
 
     runCountdown(onComplete) {
@@ -77,9 +100,14 @@ export class UIManager {
             el.classList.add("hidden");
         }
 
+        // Hide camera button by default
+        this.camBtn.classList.add("hidden");
+
         if (panelName === "game") {
             this.gameUI.style.display = "none";
             this.chatOverlay.classList.remove("hidden");
+            // Show camera button in game
+            this.camBtn.classList.remove("hidden");
         } else if (panelName === "start") {
             this.gameUI.style.display = "flex";
             this.panels.start.classList.remove("hidden");
@@ -133,7 +161,6 @@ export class UIManager {
         return readyCount;
     }
 
-    // --- UPDATED ROOM LIST ---
     updateRoomList(rooms, onJoin) {
         this.publicRoomListEl.innerHTML = "";
         if (rooms.length === 0) {
@@ -148,13 +175,11 @@ export class UIManager {
                 ? room.players[room.hostId].name
                 : "Unknown";
 
-            // FIX: Check status to customize card
             const isRacing = room.status === "racing";
             const statusText = isRacing ? " (In Progress)" : "";
 
             const card = document.createElement("div");
             card.className = "room-card";
-            // Dim the card if racing
             if (isRacing) card.style.opacity = "0.7";
 
             card.innerHTML = `
@@ -169,7 +194,6 @@ export class UIManager {
             const joinBtn = document.createElement("button");
             joinBtn.className = "join-small-btn";
 
-            // FIX: Disable button for racing rooms
             if (isRacing) {
                 joinBtn.textContent = "RACING";
                 joinBtn.disabled = true;

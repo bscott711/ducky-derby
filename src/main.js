@@ -38,6 +38,19 @@ function debounce(func, wait) {
     };
 }
 
+// NEW: Hook up the camera toggle button from UIManager
+ui.setupCameraListener(() => {
+    // If currently following "Me", switch to "Leader"
+    if (engine.followId === state.user.uid) {
+        engine.setFollowId(null);
+        return "Leader";
+    }
+
+    // Switch to "Me"
+    engine.setFollowId(state.user.uid);
+    return "Me";
+});
+
 authService.onAuthStateChanged((user) => {
     if (user) {
         state.user = user;
@@ -174,17 +187,22 @@ function startRace(seed) {
     state.raceStatus = "racing";
     ui.showPanel("game");
 
-    // FIX: Map players to include IDs so sorting is deterministic
-    // Object.values() drops the keys (UIDs), so we map them back in
     const realPlayers = Object.entries(state.players).map(([id, data]) => ({
         id,
         ...data,
     }));
 
-    // We don't need to generate NPCs here anymore, the Engine handles it deterministically!
-
     // 1. Setup
     engine.setup(seed, realPlayers);
+
+    // NEW: Auto-Follow Local Player (Standard View)
+    // We update the UI button text to reflect this initial state
+    if (state.user?.uid) {
+        engine.setFollowId(state.user.uid);
+        ui.camBtn.textContent = "🎥 Camera: Me";
+    } else {
+        ui.camBtn.textContent = "🎥 Camera: Leader";
+    }
 
     // 2. Countdown
     ui.runCountdown(() => {

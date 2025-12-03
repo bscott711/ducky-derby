@@ -22,7 +22,7 @@ export class Renderer {
     draw(state) {
         const {
             cameraY,
-            cameraX, // NEW
+            cameraX,
             ducks,
             riverPath,
             obstacles,
@@ -35,31 +35,32 @@ export class Renderer {
 
         const ctx = this.ctx;
 
-        // 1. Clear & Draw Ground (Screen Space)
+        // 1. Clear & Draw Ground
         ctx.clearRect(0, 0, this.width, this.height);
         ctx.fillStyle = "#228B22";
         ctx.fillRect(0, 0, this.width, this.height);
 
         ctx.save();
 
-        // 2. Responsive Scaling & Camera Tracking
-        // TARGET_VIEW_WIDTH: The amount of world width we want visible.
-        // 550px covers the river (500px) + a little bank.
-        // This zooms in nicely on mobile (390/550 = 0.7x scale vs 0.48x previously).
+        // 2. Camera Transform (Standard View)
         const TARGET_VIEW_WIDTH = 550;
         const scale = Math.min(1.0, this.width / TARGET_VIEW_WIDTH);
 
-        // Transform: Center of Screen -> Scale -> Camera Position
-        ctx.translate(this.width / 2, 0);
+        ctx.translate(this.width / 2, this.height / 2);
         ctx.scale(scale, scale);
+
+        // Move world so Camera Target is at Center Screen
         ctx.translate(-cameraX, -cameraY);
 
-        // Define render bounds (World Coordinates)
-        // We add a safe buffer to ensure we draw everything visible
-        const renderStart = cameraY - 100 / scale;
-        const renderEnd = cameraY + this.height / scale + 100;
+        // Look Ahead Offset: Move world UP slightly so we see more "downstream"
+        const lookAhead = (this.height / scale) * 0.15;
+        ctx.translate(0, -lookAhead);
 
-        // 3. Decorations (Background)
+        // Render Bounds
+        const renderStart = cameraY - 500;
+        const renderEnd = cameraY + 1000;
+
+        // 3. Decorations
         for (const deco of decorations) {
             if (deco.y < renderStart || deco.y > renderEnd) continue;
             if (deco.type === "grass") {
@@ -136,6 +137,7 @@ export class Renderer {
             ctx.save();
             const floatY = Math.sin(globalTime * 3 + box.bobOffset) * 5;
             ctx.translate(box.x, box.y + floatY);
+
             ctx.fillStyle = "#FFD700";
             ctx.strokeStyle = "#DAA520";
             ctx.lineWidth = 2;
@@ -173,7 +175,7 @@ export class Renderer {
             ctx.restore();
         }
 
-        // 9. Bank Decorations (Foreground)
+        // 9. Bank Decorations
         for (const deco of decorations) {
             if (deco.y < renderStart || deco.y > renderEnd) continue;
             if (deco.type === "tree") {
@@ -211,21 +213,17 @@ export class Renderer {
         if (finishSeg) {
             const left = finishSeg.centerX - finishSeg.width / 2;
             const right = finishSeg.centerX + finishSeg.width / 2;
-
             ctx.save();
             ctx.translate(left, this.finishLineY);
-
             const checkSize = 20;
             const checks = Math.ceil((right - left) / checkSize);
             for (let i = 0; i < checks; i++) {
                 ctx.fillStyle = i % 2 === 0 ? "#FFFFFF" : "#000000";
                 ctx.fillRect(i * checkSize, 0, checkSize, 20);
             }
-
             ctx.fillStyle = "#8B4513";
             ctx.fillRect(-10, -30, 10, 50);
             ctx.fillRect(right - left, -30, 10, 50);
-
             ctx.restore();
         }
     }
@@ -234,47 +232,34 @@ export class Renderer {
         const netY = this.finishLineY + NET_OFFSET;
         const netSegIdx = Math.floor((netY + 500) / 5);
         const netSeg = riverPath[netSegIdx];
-
         if (netSeg) {
             const left = netSeg.centerX - netSeg.width / 2;
             const right = netSeg.centerX + netSeg.width / 2;
-
             ctx.save();
             ctx.translate(left, netY);
-
-            // Posts
             ctx.fillStyle = "#555";
             ctx.fillRect(-10, -40, 10, 60);
             ctx.fillRect(right - left, -40, 10, 60);
-
-            // The Net
             ctx.beginPath();
             ctx.rect(0, -20, right - left, 40);
             ctx.strokeStyle = "rgba(0,0,0,0.3)";
             ctx.lineWidth = 1;
-
-            // Cross hatching
             ctx.save();
             ctx.clip();
             for (let i = 0; i < right - left + 40; i += 10) {
-                // Diagonals /
                 ctx.moveTo(i, -20);
                 ctx.lineTo(i - 40, 20);
-                // Diagonals \
                 ctx.moveTo(i - 40, -20);
                 ctx.lineTo(i, 20);
             }
             ctx.stroke();
             ctx.restore();
-
-            // Top Rope
             ctx.beginPath();
             ctx.moveTo(0, -20);
             ctx.lineTo(right - left, -20);
             ctx.lineWidth = 4;
-            ctx.strokeStyle = "#8B0000"; // Red rope
+            ctx.strokeStyle = "#8B0000";
             ctx.stroke();
-
             ctx.restore();
         }
     }
@@ -284,12 +269,10 @@ export class Renderer {
         const segmentIndex = Math.floor((bridgeY + 500) / 5);
         const segment = riverPath[segmentIndex];
         if (!segment) return;
-
         const bridgeWidth = PHYSICS.RIVER_WIDTH + 140;
         const startX = segment.centerX - bridgeWidth / 2;
         const endX = segment.centerX + bridgeWidth / 2;
         const archHeight = 60;
-
         ctx.save();
         ctx.beginPath();
         ctx.moveTo(startX, bridgeY + 20);
@@ -297,7 +280,6 @@ export class Renderer {
         ctx.strokeStyle = "rgba(0,0,0,0.2)";
         ctx.lineWidth = 15;
         ctx.stroke();
-
         ctx.beginPath();
         ctx.moveTo(startX - 10, bridgeY);
         ctx.quadraticCurveTo(segment.centerX, bridgeY - archHeight * 2, endX + 10, bridgeY);
@@ -305,14 +287,12 @@ export class Renderer {
         ctx.strokeStyle = "#8B4513";
         ctx.lineCap = "butt";
         ctx.stroke();
-
         ctx.strokeStyle = "#A0522D";
         ctx.lineWidth = 3;
         ctx.globalCompositeOperation = "source-atop";
         ctx.lineWidth = 34;
         ctx.strokeStyle = "#8B4513";
         ctx.stroke();
-
         ctx.beginPath();
         ctx.moveTo(startX - 10, bridgeY - 15);
         ctx.quadraticCurveTo(
@@ -329,8 +309,6 @@ export class Renderer {
 
     drawDuck(ctx, duck, globalTime) {
         ctx.save();
-
-        // Shadow
         if (duck.z > 0) {
             ctx.save();
             ctx.translate(duck.x, duck.y);
@@ -343,20 +321,16 @@ export class Renderer {
             ctx.fill();
             ctx.restore();
         }
-
         ctx.translate(duck.x, duck.y - duck.z);
-
         const scale = duck.radius / 35;
         const facingRight = duck.vx > 0.1;
         ctx.scale(facingRight ? -scale : scale, scale);
         ctx.translate(-50, -60);
-
         if (duck.effect === "GHOST") ctx.globalAlpha = 0.5;
         if (duck.effect === "BOUNCY") {
             const pulse = 1 + Math.sin(globalTime * 20) * 0.1;
             ctx.scale(pulse, 1 / pulse);
         }
-
         // Body
         ctx.beginPath();
         ctx.moveTo(20, 60);
@@ -370,13 +344,11 @@ export class Renderer {
         ctx.quadraticCurveTo(20, 10, 20, 40);
         ctx.lineTo(20, 60);
         ctx.closePath();
-
         ctx.fillStyle = duck.effect === "ANCHOR" ? "#555" : duck.color;
         ctx.fill();
         ctx.lineWidth = 4;
         ctx.strokeStyle = "#333";
         ctx.stroke();
-
         // Bill
         ctx.beginPath();
         ctx.moveTo(20, 35);
@@ -386,7 +358,6 @@ export class Renderer {
         ctx.fillStyle = duck.beak;
         ctx.fill();
         ctx.stroke();
-
         // Wing
         ctx.beginPath();
         ctx.moveTo(40, 65);
@@ -395,7 +366,6 @@ export class Renderer {
         ctx.lineWidth = 4;
         ctx.lineCap = "round";
         ctx.stroke();
-
         // Eye
         ctx.beginPath();
         ctx.arc(40, 30, 5, 0, Math.PI * 2);
@@ -405,9 +375,7 @@ export class Renderer {
         ctx.arc(42, 30, 2, 0, Math.PI * 2);
         ctx.fillStyle = "black";
         ctx.fill();
-
         ctx.restore();
-
         // Name Tag & Icons
         ctx.save();
         ctx.translate(duck.x, duck.y - duck.z);
@@ -416,20 +384,17 @@ export class Renderer {
         ctx.textAlign = "center";
         ctx.lineWidth = 3;
         ctx.strokeStyle = "black";
-
         if (duck.effect) {
             let icon = "";
             if (duck.effect === "SPEED") icon = "⚡";
             if (duck.effect === "ANCHOR") icon = "⚓";
             if (duck.effect === "BOUNCY") icon = "🏀";
             if (duck.effect === "GHOST") icon = "👻";
-
             if (icon) {
                 ctx.font = "20px Arial";
                 ctx.fillText(icon, 0, -duck.radius - 25);
             }
         }
-
         ctx.strokeText(duck.name, 0, -duck.radius - 10);
         ctx.fillText(duck.name, 0, -duck.radius - 10);
         ctx.restore();
