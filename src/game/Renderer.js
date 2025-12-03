@@ -1,4 +1,4 @@
-import { PHYSICS, POWERUPS, RACE_DISTANCE, NET_OFFSET, HUNTERS } from "../config.js";
+import { HUNTERS, NET_OFFSET, PHYSICS, POWERUPS, RACE_DISTANCE } from "../config.js";
 
 export class Renderer {
     constructor(canvasId) {
@@ -31,7 +31,7 @@ export class Renderer {
             rapids,
             powerupBoxes,
             hunters,
-            globalTime
+            globalTime,
         } = state;
 
         const ctx = this.ctx;
@@ -42,7 +42,7 @@ export class Renderer {
 
         ctx.save();
 
-        const TARGET_VIEW_WIDTH = 600; 
+        const TARGET_VIEW_WIDTH = 600;
         const scale = Math.min(1.0, this.width / TARGET_VIEW_WIDTH);
 
         ctx.translate(this.width / 2, this.height / 2);
@@ -129,7 +129,7 @@ export class Renderer {
             ctx.save();
             const floatY = Math.sin(globalTime * 3 + box.bobOffset) * 5;
             ctx.translate(box.x, box.y + floatY);
-            
+
             ctx.fillStyle = "#FFD700";
             ctx.strokeStyle = "#DAA520";
             ctx.lineWidth = 2;
@@ -190,7 +190,7 @@ export class Renderer {
         // Hunters
         for (const hunter of hunters) {
             if (hunter.y < renderStart || hunter.y > renderEnd) continue;
-            
+
             // Hunter Body
             ctx.beginPath();
             ctx.arc(hunter.x, hunter.y, 10, 0, Math.PI * 2);
@@ -233,13 +233,13 @@ export class Renderer {
             ctx.translate(left, this.finishLineY);
             const checkSize = 20;
             const checks = Math.ceil((right - left) / checkSize);
-            for(let i=0; i<checks; i++) {
+            for (let i = 0; i < checks; i++) {
                 ctx.fillStyle = i % 2 === 0 ? "#FFFFFF" : "#000000";
                 ctx.fillRect(i * checkSize, 0, checkSize, 20);
             }
             ctx.fillStyle = "#8B4513";
-            ctx.fillRect(-10, -30, 10, 50); 
-            ctx.fillRect(right - left, -30, 10, 50); 
+            ctx.fillRect(-10, -30, 10, 50);
+            ctx.fillRect(right - left, -30, 10, 50);
             ctx.restore();
         }
     }
@@ -262,9 +262,11 @@ export class Renderer {
             ctx.lineWidth = 1;
             ctx.save();
             ctx.clip();
-            for (let i = 0; i < (right - left) + 40; i += 10) {
-                ctx.moveTo(i, -20); ctx.lineTo(i - 40, 20);
-                ctx.moveTo(i - 40, -20); ctx.lineTo(i, 20);
+            for (let i = 0; i < right - left + 40; i += 10) {
+                ctx.moveTo(i, -20);
+                ctx.lineTo(i - 40, 20);
+                ctx.moveTo(i - 40, -20);
+                ctx.lineTo(i, 20);
             }
             ctx.stroke();
             ctx.restore();
@@ -272,7 +274,7 @@ export class Renderer {
             ctx.moveTo(0, -20);
             ctx.lineTo(right - left, -20);
             ctx.lineWidth = 4;
-            ctx.strokeStyle = "#8B0000"; 
+            ctx.strokeStyle = "#8B0000";
             ctx.stroke();
             ctx.restore();
         }
@@ -309,7 +311,12 @@ export class Renderer {
         ctx.stroke();
         ctx.beginPath();
         ctx.moveTo(startX - 10, bridgeY - 15);
-        ctx.quadraticCurveTo(segment.centerX, bridgeY - archHeight * 2 - 15, endX + 10, bridgeY - 15);
+        ctx.quadraticCurveTo(
+            segment.centerX,
+            bridgeY - archHeight * 2 - 15,
+            endX + 10,
+            bridgeY - 15,
+        );
         ctx.lineWidth = 6;
         ctx.strokeStyle = "#CD853F";
         ctx.stroke();
@@ -335,17 +342,17 @@ export class Renderer {
         const facingRight = duck.vx > 0.1;
         ctx.scale(facingRight ? -scale : scale, scale);
         ctx.translate(-50, -60);
-        
+
         // Ghost Status
         if (duck.effect === "GHOST" || duck.effect === "HUNTED") {
             ctx.globalAlpha = 0.5;
         }
-        
+
         // NEW: FLIP IF HUNTED (Upside Down!)
         if (duck.effect === "HUNTED") {
             ctx.scale(1, -1);
         }
-        
+
         if (duck.effect === "BOUNCY") {
             const pulse = 1 + Math.sin(globalTime * 20) * 0.1;
             ctx.scale(pulse, 1 / pulse);
@@ -408,7 +415,7 @@ export class Renderer {
             if (duck.effect === "ANCHOR") icon = "⚓";
             if (duck.effect === "BOUNCY") icon = "🏀";
             if (duck.effect === "GHOST") icon = "👻";
-            if (duck.effect === "HUNTED") icon = "⚠️"; 
+            if (duck.effect === "HUNTED") icon = "⚠️";
             if (icon) {
                 ctx.font = "20px Arial";
                 ctx.fillText(icon, 0, -duck.radius - 25);
