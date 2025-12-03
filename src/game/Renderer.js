@@ -22,6 +22,7 @@ export class Renderer {
     draw(state) {
         const {
             cameraY,
+            cameraX, // NEW
             ducks,
             riverPath,
             obstacles,
@@ -33,22 +34,32 @@ export class Renderer {
         } = state;
 
         const ctx = this.ctx;
-        const camY = cameraY;
 
+        // 1. Clear & Draw Ground (Screen Space)
         ctx.clearRect(0, 0, this.width, this.height);
+        ctx.fillStyle = "#228B22";
+        ctx.fillRect(0, 0, this.width, this.height);
+
         ctx.save();
 
-        const offsetX = (this.width - PHYSICS.GAME_WIDTH) / 2;
-        ctx.translate(offsetX, -camY);
+        // 2. Responsive Scaling & Camera Tracking
+        // TARGET_VIEW_WIDTH: The amount of world width we want visible.
+        // 550px covers the river (500px) + a little bank.
+        // This zooms in nicely on mobile (390/550 = 0.7x scale vs 0.48x previously).
+        const TARGET_VIEW_WIDTH = 550;
+        const scale = Math.min(1.0, this.width / TARGET_VIEW_WIDTH);
 
-        // 1. Bank
-        ctx.fillStyle = "#228B22";
-        ctx.fillRect(0 - offsetX, camY, this.width + offsetX * 2, this.height);
+        // Transform: Center of Screen -> Scale -> Camera Position
+        ctx.translate(this.width / 2, 0);
+        ctx.scale(scale, scale);
+        ctx.translate(-cameraX, -cameraY);
 
-        const renderStart = camY - 100;
-        const renderEnd = camY + this.height + 100;
+        // Define render bounds (World Coordinates)
+        // We add a safe buffer to ensure we draw everything visible
+        const renderStart = cameraY - 100 / scale;
+        const renderEnd = cameraY + this.height / scale + 100;
 
-        // 2. Decorations (Background)
+        // 3. Decorations (Background)
         for (const deco of decorations) {
             if (deco.y < renderStart || deco.y > renderEnd) continue;
             if (deco.type === "grass") {
@@ -59,7 +70,7 @@ export class Renderer {
             }
         }
 
-        // 3. River
+        // 4. River
         ctx.beginPath();
         ctx.fillStyle = "#1E90FF";
         const startIndex = Math.max(0, Math.floor((renderStart + 500) / 5));
@@ -75,7 +86,7 @@ export class Renderer {
         }
         ctx.fill();
 
-        // 4. Whirlpools
+        // 5. Whirlpools
         for (const pool of whirlpools) {
             if (pool.y < renderStart || pool.y > renderEnd) continue;
             ctx.save();
@@ -97,7 +108,7 @@ export class Renderer {
             ctx.restore();
         }
 
-        // 5. Rapids
+        // 6. Rapids
         ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
         ctx.lineWidth = 2;
         for (const rapid of rapids) {
@@ -119,7 +130,7 @@ export class Renderer {
             ctx.stroke();
         }
 
-        // 6. Power-Up Boxes
+        // 7. Power-Up Boxes
         for (const box of powerupBoxes) {
             if (!box.active || box.y < renderStart || box.y > renderEnd) continue;
             ctx.save();
@@ -139,7 +150,7 @@ export class Renderer {
             ctx.restore();
         }
 
-        // 7. Obstacles
+        // 8. Obstacles
         for (const rock of obstacles) {
             if (rock.y < renderStart || rock.y > renderEnd) continue;
             ctx.save();
@@ -162,7 +173,7 @@ export class Renderer {
             ctx.restore();
         }
 
-        // 8. Bank Decorations (Foreground)
+        // 9. Bank Decorations (Foreground)
         for (const deco of decorations) {
             if (deco.y < renderStart || deco.y > renderEnd) continue;
             if (deco.type === "tree") {
@@ -188,7 +199,6 @@ export class Renderer {
 
         // 10. Ducks
         for (const duck of ducks) {
-            // Note: Removed globalAlpha for finished ducks so they look solid in the net
             this.drawDuck(ctx, duck, globalTime);
         }
 

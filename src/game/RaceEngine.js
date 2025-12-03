@@ -17,6 +17,7 @@ export class RaceEngine {
         this.powerupBoxes = [];
 
         this.cameraY = 0;
+        this.cameraX = PHYSICS.GAME_WIDTH / 2; // NEW: Track X position
         this.finishLineY = RACE_DISTANCE;
         this.raceFinished = false;
         this.globalTime = 0;
@@ -74,6 +75,9 @@ export class RaceEngine {
         const segment = this.riverPath[segmentIndex] || this.riverPath[0];
         const bridgeWidth = PHYSICS.RIVER_WIDTH + 140;
         const archHeight = 60;
+
+        // NEW: Initialize camera X to the bridge center so we start centered
+        this.cameraX = segment.centerX;
 
         for (const p of racerList) {
             const spread = bridgeWidth * 0.6;
@@ -166,7 +170,7 @@ export class RaceEngine {
                 continue;
             }
 
-            // Powerups
+            // Effects
             if (duck.effect) {
                 duck.effectTimer -= timeScale;
                 if (duck.effectTimer <= 0) {
@@ -175,7 +179,6 @@ export class RaceEngine {
                 }
             }
 
-            // Giant Gravity (Disabled if finished to avoid disrupting the pile-up)
             if (duck.effect === "GIANT" && !duck.finished) {
                 for (const other of this.ducks) {
                     if (other === duck || other.finished) continue;
@@ -195,13 +198,13 @@ export class RaceEngine {
 
             if (duck.cooldownTimer > 0) duck.cooldownTimer -= timeScale;
 
-            // NET COLLISION (The Catch Logic)
+            // Net Collision
             if (duck.y + duck.radius > netY) {
                 duck.y = netY - duck.radius;
                 duck.vy = 0;
-                duck.vx *= 0.9; // Horizontal friction on the net
+                duck.vx *= 0.9;
             } else {
-                // Normal River Movement Logic
+                // River Movement
                 const segmentIndex = Math.floor((duck.y + 500) / 5);
                 const currentSeg = this.riverPath[segmentIndex];
                 const nextSeg = this.riverPath[segmentIndex + 20];
@@ -312,16 +315,13 @@ export class RaceEngine {
             }
         }
 
-        // Collision Resolution (Updated: Allow finished ducks to bump into each other)
+        // Collision Resolution
         for (let i = 0; i < this.ducks.length; i++) {
             for (let j = i + 1; j < this.ducks.length; j++) {
                 const d1 = this.ducks[i];
                 const d2 = this.ducks[j];
-
-                // Allow collision if finished (for net pile-up), but skip if falling
-                if (d1.z > 0 || d2.z > 0) continue;
+                if ((d1.finished && d2.finished) || d1.z > 0 || d2.z > 0) continue;
                 if (d1.effect === "GHOST" || d2.effect === "GHOST") continue;
-
                 this.resolveCollision(d1, d2);
             }
         }
@@ -336,18 +336,27 @@ export class RaceEngine {
             }
         }
 
-        // Camera Logic (Clamped so finish line remains in view)
+        // 1. Vertical Camera (Y-Axis)
         const leaderVisualY = Math.max(...this.ducks.map((d) => d.y - d.z));
         let targetCamY = leaderVisualY - this.renderer.height * 0.4;
 
-        // Clamp: Ensure the finish line never scrolls off the top
-        // (Keep finish line at least 200px from the top)
         const maxCamY = this.finishLineY - 200;
-        if (targetCamY > maxCamY) {
-            targetCamY = maxCamY;
-        }
+        if (targetCamY > maxCamY) targetCamY = maxCamY;
 
         this.cameraY += (targetCamY - this.cameraY) * 0.05;
+
+        // 2. Horizontal Camera (X-Axis) - NEW
+        // Look ahead to the center of the screen to find the river segment we are looking at
+        const lookAheadY = this.cameraY + this.renderer.height * 0.5;
+        const segIdx = Math.floor((lookAheadY + 500) / 5);
+        const targetSeg = this.riverPath[segIdx] || this.riverPath[this.riverPath.length - 1];
+
+        let targetCamX = PHYSICS.GAME_WIDTH / 2;
+        if (targetSeg) {
+            targetCamX = targetSeg.centerX;
+        }
+
+        this.cameraX += (targetCamX - this.cameraX) * 0.05;
 
         if (finishedCount === this.ducks.length) {
             this.endRace();
@@ -448,6 +457,7 @@ export class RaceEngine {
     render() {
         this.renderer.draw({
             cameraY: this.cameraY,
+            cameraX: this.cameraX, // NEW: Pass cameraX to renderer
             ducks: this.ducks,
             riverPath: this.riverPath,
             obstacles: this.obstacles,
