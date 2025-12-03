@@ -17,7 +17,6 @@ const state = {
     controlsInitialized: false,
 };
 
-// --- HELPERS ---
 function getRandomHex() {
     return `#${Math.floor(Math.random() * 16777215)
         .toString(16)
@@ -39,7 +38,6 @@ function debounce(func, wait) {
     };
 }
 
-// --- AUTH ---
 authService.onAuthStateChanged((user) => {
     if (user) {
         state.user = user;
@@ -51,7 +49,6 @@ authService.onAuthStateChanged((user) => {
     }
 });
 
-// --- EVENT HANDLERS ---
 document.getElementById("create-room-btn").addEventListener("click", async () => {
     const name = document.getElementById("player-name-input").value || "Host";
     const isPublic = document.getElementById("is-public-check").checked;
@@ -180,7 +177,6 @@ function startRace(seed) {
     const realPlayers = Object.values(state.players);
     const racers = [...realPlayers];
 
-    // NPC Logic
     if (racers.length < MIN_RACERS) {
         const needed = MIN_RACERS - racers.length;
         for (let i = 0; i < needed; i++) {
@@ -193,13 +189,9 @@ function startRace(seed) {
         }
     }
 
-    // --- FIX: The Sequence ---
-    // 1. Setup World (Draw Bridge, Place Ducks)
     engine.setup(seed, racers);
 
-    // 2. Countdown Animation
     ui.runCountdown(() => {
-        // 3. Start Physics Loop
         engine.run((finishOrder) => {
             state.raceStatus = "finished";
             console.log("🏆 Race Finished", finishOrder);

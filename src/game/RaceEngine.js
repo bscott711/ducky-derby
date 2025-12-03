@@ -1,4 +1,4 @@
-import { LEVEL_GEN, PHYSICS, RACE_DISTANCE } from "../config.js";
+import { LEVEL_GEN, PHYSICS, POWERUPS, RACE_DISTANCE } from "../config.js";
 import { mulberry32 } from "../utils/rng.js";
 
 export class RaceEngine {
@@ -13,6 +13,7 @@ export class RaceEngine {
         this.decorations = [];
         this.rapids = [];
         this.whirlpools = [];
+        this.powerupBoxes = [];
 
         this.cameraY = 0;
         this.finishLineY = RACE_DISTANCE;
@@ -28,7 +29,7 @@ export class RaceEngine {
         this.canvas.height = window.innerHeight;
     }
 
-    // --- PHASE 1: SETUP (Static) ---
+    // --- PHASE 1: SETUP ---
     setup(seedVal, players) {
         let currentSeed = seedVal;
         if (!currentSeed) {
@@ -47,7 +48,6 @@ export class RaceEngine {
         this.ducks = [];
         const playerList = Object.values(players);
 
-        // Find bridge parameters for spawn logic
         const bridgeY = -200;
         const segmentIndex = Math.floor((bridgeY + 500) / 5);
         const segment = this.riverPath[segmentIndex] || this.riverPath[0];
@@ -55,15 +55,11 @@ export class RaceEngine {
         const archHeight = 60;
 
         for (const p of playerList) {
-            // Random spread on bridge
             const spread = bridgeWidth * 0.6;
             const jitterX = (this.rng() - 0.5) * spread;
-
-            // Calculate Arch Height at this X
             const normX = jitterX / (bridgeWidth / 2);
             const archY = bridgeY - archHeight * (1 - normX * normX);
-            const spawnY = archY - 10 - this.rng() * 20; // Stand on top
-
+            const spawnY = archY - 10 - this.rng() * 20;
             const startX = segment ? segment.centerX : this.canvas.width / 2;
 
             this.ducks.push({
@@ -80,6 +76,9 @@ export class RaceEngine {
                 finished: false,
                 trapTimer: 0,
                 cooldownTimer: 0,
+                effect: null,
+                effectTimer: 0,
+                originalRadius: PHYSICS.DUCK_RADIUS,
             });
         }
 
@@ -91,7 +90,7 @@ export class RaceEngine {
         this.render();
     }
 
-    // --- PHASE 2: RUN (Active) ---
+    // --- PHASE 2: RUN ---
     run(onFinish) {
         this.onFinishCallback = onFinish;
         this.lastTime = performance.now();
@@ -104,6 +103,7 @@ export class RaceEngine {
         this.decorations = [];
         this.rapids = [];
         this.whirlpools = [];
+        this.powerupBoxes = [];
 
         const center = this.canvas.width / 2;
         const amplitude = 300;
@@ -143,6 +143,20 @@ export class RaceEngine {
                     x: segment.centerX + (this.rng() - 0.5) * (segment.width * 0.6),
                     y: segment.y,
                     radius: PHYSICS.WHIRLPOOL_RADIUS,
+                });
+            }
+
+            if (
+                segment.y > 200 &&
+                segment.y < this.finishLineY &&
+                this.rng() < POWERUPS.SPAWN_RATE
+            ) {
+                this.powerupBoxes.push({
+                    x: segment.centerX + (this.rng() - 0.5) * (segment.width * 0.8),
+                    y: segment.y,
+                    size: POWERUPS.BOX_SIZE,
+                    active: true,
+                    bobOffset: this.rng() * Math.PI * 2,
                 });
             }
 
@@ -240,6 +254,33 @@ export class RaceEngine {
                 continue;
             }
 
+            // Powerups
+            if (duck.effect) {
+                duck.effectTimer -= timeScale;
+                if (duck.effectTimer <= 0) {
+                    duck.effect = null;
+                    duck.radius = duck.originalRadius;
+                }
+            }
+
+            if (duck.effect === "GIANT") {
+                for (const other of this.ducks) {
+                    if (other === duck || other.finished) continue;
+                    const dx = duck.x - other.x;
+                    const dy = duck.y - other.y;
+                    const distSq = dx ** 2 + dy ** 2;
+
+                    if (distSq < POWERUPS.GIANT_RANGE ** 2) {
+                        const dist = Math.sqrt(distSq);
+                        const force =
+                            (1 - dist / POWERUPS.GIANT_RANGE) * POWERUPS.GIANT_GRAVITY * timeScale;
+                        other.vx += (dx / dist) * force;
+                        other.vy += (dy / dist) * force;
+                    }
+                }
+            }
+
+            // Standard Physics
             if (duck.cooldownTimer > 0) duck.cooldownTimer -= timeScale;
 
             const segmentIndex = Math.floor((duck.y + 500) / 5);
@@ -255,7 +296,7 @@ export class RaceEngine {
             }
 
             let trapped = false;
-            if (duck.cooldownTimer <= 0) {
+            if (duck.cooldownTimer <= 0 && duck.effect !== "GHOST") {
                 for (const pool of this.whirlpools) {
                     const dx = duck.x - pool.x;
                     const dy = duck.y - pool.y;
@@ -319,7 +360,10 @@ export class RaceEngine {
                 duck.vx += (this.rng() - 0.5) * turb * timeScale;
             }
 
-            const friction = 0.96 ** timeScale;
+            let frictionVal = 0.96;
+            if (duck.effect === "ANCHOR") frictionVal = POWERUPS.ANCHOR_DRAG;
+
+            const friction = frictionVal ** timeScale;
             duck.vx *= friction;
             duck.vy *= friction;
 
@@ -332,16 +376,38 @@ export class RaceEngine {
             }
         }
 
+        // Collisions
+        for (const duck of this.ducks) {
+            if (duck.finished) continue;
+            for (const box of this.powerupBoxes) {
+                if (!box.active) continue;
+                if (
+                    Math.abs(duck.x - box.x) < POWERUPS.BOX_SIZE &&
+                    Math.abs(duck.y - box.y) < POWERUPS.BOX_SIZE
+                ) {
+                    this.collectPowerup(duck, box);
+                }
+            }
+        }
+
         for (let i = 0; i < this.ducks.length; i++) {
             for (let j = i + 1; j < this.ducks.length; j++) {
-                if (this.ducks[i].finished || this.ducks[j].finished) continue;
-                this.resolveCollision(this.ducks[i], this.ducks[j]);
+                const d1 = this.ducks[i];
+                const d2 = this.ducks[j];
+
+                if (d1.finished || d2.finished) continue;
+                if (d1.effect === "GHOST" || d2.effect === "GHOST") continue;
+
+                this.resolveCollision(d1, d2);
             }
         }
 
         for (const duck of this.ducks) {
             if (duck.finished) continue;
             this.resolveWallCollision(duck);
+
+            if (duck.effect === "GHOST") continue;
+
             for (const rock of this.obstacles) {
                 if (Math.abs(rock.y - duck.y) > 60) continue;
                 this.resolveRockCollision(duck, rock);
@@ -354,6 +420,22 @@ export class RaceEngine {
 
         if (finishedCount === this.ducks.length) {
             this.endRace();
+        }
+    }
+
+    collectPowerup(duck, box) {
+        box.active = false;
+
+        const typeIndex = Math.floor(this.rng() * POWERUPS.TYPES.length);
+        const type = POWERUPS.TYPES[typeIndex];
+
+        duck.effect = type;
+        duck.effectTimer = POWERUPS.DURATION;
+
+        if (type === "GIANT") {
+            duck.radius = duck.originalRadius * POWERUPS.GIANT_SCALE;
+        } else if (type === "SPEED") {
+            duck.vy += POWERUPS.SPEED_FORCE;
         }
     }
 
@@ -373,8 +455,13 @@ export class RaceEngine {
             const v2r = d2.vx * cos + d2.vy * sin;
             const v2t = -d2.vx * sin + d2.vy * cos;
 
-            const v1rFinal = v2r * PHYSICS.COLLISION_DAMPING;
-            const v2rFinal = v1r * PHYSICS.COLLISION_DAMPING;
+            let restitution = PHYSICS.COLLISION_DAMPING;
+            if (d1.effect === "BOUNCY" || d2.effect === "BOUNCY") {
+                restitution = POWERUPS.BOUNCY_FACTOR;
+            }
+
+            const v1rFinal = v2r * restitution;
+            const v2rFinal = v1r * restitution;
 
             d1.vx = v1rFinal * cos - v1t * sin;
             d1.vy = v1rFinal * sin + v1t * cos;
@@ -404,9 +491,12 @@ export class RaceEngine {
             duck.x += nx * overlap;
             duck.y += ny * overlap;
 
+            let restitution = PHYSICS.COLLISION_DAMPING;
+            if (duck.effect === "BOUNCY") restitution = POWERUPS.BOUNCY_FACTOR;
+
             const dot = duck.vx * nx + duck.vy * ny;
-            duck.vx = (duck.vx - 2 * dot * nx) * PHYSICS.COLLISION_DAMPING;
-            duck.vy = (duck.vy - 2 * dot * ny) * PHYSICS.COLLISION_DAMPING;
+            duck.vx = (duck.vx - 2 * dot * nx) * restitution;
+            duck.vy = (duck.vy - 2 * dot * ny) * restitution;
         }
     }
 
@@ -515,7 +605,31 @@ export class RaceEngine {
             ctx.stroke();
         }
 
-        // 6. Obstacles
+        // 6. Power-Up Boxes
+        for (const box of this.powerupBoxes) {
+            if (!box.active || box.y < renderStart || box.y > renderEnd) continue;
+
+            ctx.save();
+            const floatY = Math.sin(this.globalTime * 3 + box.bobOffset) * 5;
+            ctx.translate(box.x, box.y + floatY);
+
+            ctx.fillStyle = "#FFD700";
+            ctx.strokeStyle = "#DAA520";
+            ctx.lineWidth = 2;
+            const sz = box.size;
+            ctx.fillRect(-sz / 2, -sz / 2, sz, sz);
+            ctx.strokeRect(-sz / 2, -sz / 2, sz, sz);
+
+            ctx.fillStyle = "white";
+            ctx.font = "bold 16px Arial";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText("?", 0, 0);
+
+            ctx.restore();
+        }
+
+        // 7. Obstacles
         for (const rock of this.obstacles) {
             if (rock.y < renderStart || rock.y > renderEnd) continue;
             ctx.save();
@@ -538,7 +652,7 @@ export class RaceEngine {
             ctx.restore();
         }
 
-        // 7. Bank Decorations
+        // 8. Bank Decorations
         for (const deco of this.decorations) {
             if (deco.y < renderStart || deco.y > renderEnd) continue;
             if (deco.type === "tree") {
@@ -558,14 +672,14 @@ export class RaceEngine {
             }
         }
 
-        // 8. Bridge
+        // 9. Bridge
         this.drawBridge(ctx);
 
-        // 9. Finish Line
+        // 10. Finish Line
         ctx.fillStyle = "white";
         ctx.fillRect(0, this.finishLineY, width, 20);
 
-        // 10. Ducks
+        // 11. Ducks
         for (const duck of this.ducks) {
             if (duck.finished) ctx.globalAlpha = 0.6;
             this.drawDuck(ctx, duck);
@@ -636,6 +750,14 @@ export class RaceEngine {
 
         ctx.translate(-50, -60);
 
+        if (duck.effect === "GHOST") {
+            ctx.globalAlpha = 0.5;
+        }
+        if (duck.effect === "BOUNCY") {
+            const pulse = 1 + Math.sin(this.globalTime * 20) * 0.1;
+            ctx.scale(pulse, 1 / pulse);
+        }
+
         ctx.beginPath();
         ctx.moveTo(20, 60);
         ctx.quadraticCurveTo(20, 90, 50, 90);
@@ -648,7 +770,8 @@ export class RaceEngine {
         ctx.quadraticCurveTo(20, 10, 20, 40);
         ctx.lineTo(20, 60);
         ctx.closePath();
-        ctx.fillStyle = duck.color;
+
+        ctx.fillStyle = duck.effect === "ANCHOR" ? "#555" : duck.color;
         ctx.fill();
         ctx.lineWidth = 4;
         ctx.strokeStyle = "#333";
@@ -689,6 +812,20 @@ export class RaceEngine {
         ctx.textAlign = "center";
         ctx.lineWidth = 3;
         ctx.strokeStyle = "black";
+
+        if (duck.effect) {
+            let icon = "";
+            if (duck.effect === "SPEED") icon = "⚡";
+            if (duck.effect === "ANCHOR") icon = "⚓";
+            if (duck.effect === "BOUNCY") icon = "🏀";
+            if (duck.effect === "GHOST") icon = "👻";
+
+            if (icon) {
+                ctx.font = "20px Arial";
+                ctx.fillText(icon, 0, -duck.radius - 25);
+            }
+        }
+
         ctx.strokeText(duck.name, 0, -duck.radius - 10);
         ctx.fillText(duck.name, 0, -duck.radius - 10);
         ctx.restore();

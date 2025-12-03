@@ -25,9 +25,26 @@ export const PHYSICS = {
     WHIRLPOOL_SPIN: 0.3,
     WHIRLPOOL_HOLD_TIME: 150,
 
-    // NEW: Bank Physics
-    BANK_FRICTION_ZONE: 60, // Pixels from the shore where water is slower
-    BANK_FLOW_MODIFIER: 0.4, // Water speed multiplier at the very edge (40%)
+    // Bank Physics
+    BANK_FRICTION_ZONE: 60,
+    BANK_FLOW_MODIFIER: 0.4,
+};
+
+// Power-Up Configuration
+export const POWERUPS = {
+    SPAWN_RATE: 0.001, // Chance per pixel
+    BOX_SIZE: 20, // Visual size of the mystery box
+    DURATION: 300, // Duration in frames (approx 5 seconds)
+
+    // Effect Tuning
+    GIANT_SCALE: 2.5, // How much bigger?
+    GIANT_GRAVITY: 0.8, // Pull force
+    GIANT_RANGE: 300, // Gravity radius
+    BOUNCY_FACTOR: 1.6, // Super elastic collision
+    SPEED_FORCE: 8.0, // Instant push
+    ANCHOR_DRAG: 0.9, // Heavy friction (0.90 vs normal 0.96)
+
+    TYPES: ["GIANT", "GHOST", "BOUNCY", "SPEED", "ANCHOR"],
 };
 
 // Generation Settings
