@@ -1,4 +1,6 @@
 import "./styles.css";
+// NEW: Import NPC config
+import { MIN_RACERS, NPC_NAMES } from "./config.js";
 import { RaceEngine } from "./game/RaceEngine.js";
 import { authService, dbService } from "./services/firebase.js";
 import { UIManager } from "./ui/UIManager.js";
@@ -10,7 +12,7 @@ const state = {
     user: null,
     room: null,
     isHost: false,
-    raceStatus: "lobby", // lobby, racing, finished
+    raceStatus: "lobby",
     players: {},
     chatUnsub: null,
     controlsInitialized: false,
@@ -30,7 +32,6 @@ function getRandomDuckConfig() {
     };
 }
 
-// --- HELPER: Debounce (Limits DB writes) ---
 function debounce(func, wait) {
     let timeout;
     return function (...args) {
@@ -43,7 +44,6 @@ function debounce(func, wait) {
 authService.onAuthStateChanged((user) => {
     if (user) {
         state.user = user;
-        // Load public rooms
         dbService.subscribeToPublicRooms((rooms) => {
             if (!state.room) ui.updateRoomList(rooms, (id) => handleJoinRoom(id));
         });
@@ -56,7 +56,7 @@ authService.onAuthStateChanged((user) => {
 document.getElementById("create-room-btn").addEventListener("click", async () => {
     const name = document.getElementById("player-name-input").value || "Host";
     const isPublic = document.getElementById("is-public-check").checked;
-    const defaultDuck = getRandomDuckConfig(); // Random Start
+    const defaultDuck = getRandomDuckConfig();
 
     try {
         const roomId = await dbService.createRoom(state.user.uid, name, isPublic, defaultDuck);
@@ -73,7 +73,7 @@ document.getElementById("join-room-btn").addEventListener("click", () => {
 
 async function handleJoinRoom(roomId) {
     const name = document.getElementById("player-name-input").value || "Guest";
-    const defaultDuck = getRandomDuckConfig(); // Random Start
+    const defaultDuck = getRandomDuckConfig();
 
     try {
         const hostId = await dbService.joinRoom(roomId, state.user.uid, name, defaultDuck);
@@ -121,11 +121,9 @@ function handleEnterLobby(roomId, isHost) {
     }
 
     // --- SETUP CUSTOMIZATION ---
-
-    // Create a debounced updater
     const debouncedUpdate = debounce((newConfig) => {
         dbService.updatePlayerConfig(roomId, state.user.uid, newConfig, state.players);
-    }, 300); // Wait 300ms after last change before writing to DB
+    }, 300);
 
     // Setup Chat
     if (state.chatUnsub) state.chatUnsub();
@@ -148,21 +146,17 @@ function handleEnterLobby(roomId, isHost) {
         state.players = data.players || {};
         ui.updateLobbyPlayers(state.players, state.user.uid);
 
-        // SYNC MY CONTROLS
-        // We only init the controls once to avoid overwriting user input while they type
         const me = state.players[state.user.uid];
         if (me?.config && !state.controlsInitialized) {
             ui.initCustomization(me.config, (cfg) => debouncedUpdate(cfg));
-            state.controlsInitialized = true; // Flag to prevent re-init
+            state.controlsInitialized = true;
         }
 
-        // Check Race Status Changes
         if (data.status === "racing" && state.raceStatus === "lobby") {
             console.log("🏁 Race Signal Received! Seed:", data.seed);
             const raceSeed = data.seed || 123456;
             startRace(raceSeed);
         } else if (data.status === "lobby" && state.raceStatus !== "lobby") {
-            // Soft reset (back to lobby for rematch)
             state.raceStatus = "lobby";
             ui.showPanel("lobby");
         }
@@ -188,21 +182,36 @@ function startRace(seed) {
     state.raceStatus = "racing";
     ui.showPanel("game");
 
-    // PASS state.players TO THE ENGINE
-    engine.start(seed, state.players, (finishOrder) => {
+    // --- NEW: GENERATE NPCs ---
+    const realPlayers = Object.values(state.players);
+    const racers = [...realPlayers]; // Start with real players
+
+    // Fill with NPCs if fewer than MIN_RACERS
+    if (racers.length < MIN_RACERS) {
+        const needed = MIN_RACERS - racers.length;
+        for (let i = 0; i < needed; i++) {
+            const randomName = NPC_NAMES[Math.floor(Math.random() * NPC_NAMES.length)];
+            racers.push({
+                name: `${randomName} #${i + 1}`,
+                config: getRandomDuckConfig(),
+                isNPC: true,
+            });
+        }
+    }
+
+    // Pass the combined list (Real + NPCs) to the engine
+    engine.start(seed, racers, (finishOrder) => {
         state.raceStatus = "finished";
         console.log("🏆 Race Finished", finishOrder);
 
         setTimeout(() => {
             ui.showPanel("results");
 
-            // Find my rank based on the finishOrder array
-            const myDuckIndex = finishOrder.findIndex(
-                (d) => d.name === state.players[state.user.uid]?.name,
-            );
+            // Find my rank (using name since NPCs don't have UIDs)
+            const myName = state.players[state.user.uid]?.name;
+            const myRank = finishOrder.findIndex((d) => d.name === myName);
 
-            // Pass updated data structure to UI
-            ui.showResults(finishOrder, state.players, myDuckIndex, state.user.uid);
+            ui.showResults(finishOrder, state.players, myRank, state.user.uid);
 
             const backBtn = document.getElementById("back-to-lobby-btn");
             if (state.isHost) {
@@ -218,11 +227,11 @@ function startRace(seed) {
 
 function resetToLobby() {
     state.raceStatus = "lobby";
-    state.room = null; // Clear room
+    state.room = null;
     state.isHost = false;
-    state.controlsInitialized = false; // Reset control flag
+    state.controlsInitialized = false;
 
     if (state.chatUnsub) state.chatUnsub();
     engine.stop();
-    ui.showPanel("start"); // Go back to START panel, not lobby panel
+    ui.showPanel("start");
 }

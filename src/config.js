@@ -1,17 +1,16 @@
-export const RACE_DISTANCE = 10000; // Longer race for the new engine
+export const RACE_DISTANCE = 10000;
 
-// Physics Constants (Tuned for time-scaled Canvas)
+// Physics Constants
 export const PHYSICS = {
     DUCK_RADIUS: 12,
     DUCK_MASS: 1,
     RIVER_WIDTH: 500,
-    FLOW_SPEED: 0.2, // Acceleration per frame (Results in ~300px/sec terminal velocity)
+    FLOW_SPEED: 0.2,
     COLLISION_DAMPING: 0.8,
     WALL_DAMPING: 0.6,
-    TURBULENCE: 0.2, // Random side-to-side force
+    TURBULENCE: 0.2,
 };
 
-// Initial color palette (Still used for defaults)
 export const DUCK_PALETTES = [
     { name: "Sunny", body: "#FFD700", beak: "#FF8C00" },
     { name: "Teal", body: "#00CED1", beak: "#FFD700" },
@@ -23,4 +22,35 @@ export const DUCK_PALETTES = [
     { name: "Navy", body: "#000080", beak: "#87CEEB" },
     { name: "Orange", body: "#FF4500", beak: "#FFD700" },
     { name: "White", body: "#FFFFFF", beak: "#FFA500" },
+];
+
+// --- NEW: NPC Configuration ---
+export const MIN_RACERS = 20; // Ensure at least 20 ducks are always in the race
+
+export const NPC_NAMES = [
+    "Quackers",
+    "Waddles",
+    "Puddles",
+    "Feathers",
+    "Bill",
+    "Drake",
+    "Webby",
+    "Lucky",
+    "Plucky",
+    "Howard",
+    "Scrooge",
+    "Donald",
+    "Daisy",
+    "Daffy",
+    "Psyduck",
+    "Launchpad",
+    "Gosalyn",
+    "Huey",
+    "Dewey",
+    "Louie",
+    "Ziggy",
+    "Pippin",
+    "Bubbles",
+    "Splash",
+    "Paddle",
 ];
