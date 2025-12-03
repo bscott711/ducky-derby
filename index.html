@@ -20,10 +20,17 @@
     </div>
 
     <div id="chat-overlay" class="hidden">
-        <div id="chat-messages"></div>
-        <div class="chat-input-row">
-            <input type="text" id="chat-input" placeholder="Say something..." maxlength="50">
-            <button id="send-chat-btn">Send</button>
+        <div class="chat-header">
+            <span>💬 Spectator Chat</span>
+            <button id="chat-toggle-btn">−</button>
+        </div>
+        
+        <div id="chat-content-wrapper">
+            <div id="chat-messages"></div>
+            <div class="chat-input-row">
+                <input type="text" id="chat-input" placeholder="Say something..." maxlength="50">
+                <button id="send-chat-btn">Send</button>
+            </div>
         </div>
     </div>
 
@@ -68,7 +75,21 @@
             <div class="room-code-display" id="lobby-code-display">????</div>
             
             <h3>Customize Your Duck</h3>
-            <div class="palette-grid" id="duck-selection"></div>
+            <div class="customization-container">
+                <div id="duck-preview" class="duck-preview-box">
+                    </div>
+                
+                <div class="duck-controls">
+                    <div class="control-group">
+                        <label>Body</label>
+                        <input type="color" id="color-body-input" value="#FFD700">
+                    </div>
+                    <div class="control-group">
+                        <label>Accent</label>
+                        <input type="color" id="color-accent-input" value="#FF8C00">
+                    </div>
+                </div>
+            </div>
 
             <h3>Racers Ready:</h3>
             <div class="player-list" id="lobby-player-list"></div>

@@ -1,13 +1,10 @@
 import "./styles.css";
-// NOTE: RaceEngine is disabled for this Phase 1 commit to prevent errors
-// while we refactor the physics in Phase 2.
-// import { RaceEngine } from "./game/RaceEngine.js";
-import { DUCK_PALETTES } from "./config.js";
+// import { RaceEngine } from "./game/RaceEngine.js"; // Disabled for Phase 1
 import { authService, dbService } from "./services/firebase.js";
 import { UIManager } from "./ui/UIManager.js";
 
 const ui = new UIManager();
-// const engine = new RaceEngine(ui); // Disabled for Phase 1
+// const engine = new RaceEngine(ui);
 
 const state = {
     user: null,
@@ -17,6 +14,29 @@ const state = {
     players: {},
     chatUnsub: null,
 };
+
+// --- HELPER: Random Color Generator ---
+function getRandomHex() {
+    return `#${Math.floor(Math.random() * 16777215)
+        .toString(16)
+        .padStart(6, "0")}`;
+}
+
+function getRandomDuckConfig() {
+    return {
+        body: getRandomHex(),
+        beak: getRandomHex(),
+    };
+}
+
+// --- HELPER: Debounce (Limits DB writes) ---
+function debounce(func, wait) {
+    let timeout;
+    return function (...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+    };
+}
 
 // --- AUTH ---
 authService.onAuthStateChanged((user) => {
@@ -34,8 +54,7 @@ authService.onAuthStateChanged((user) => {
 document.getElementById("create-room-btn").addEventListener("click", async () => {
     const name = document.getElementById("player-name-input").value || "Host";
     const isPublic = document.getElementById("is-public-check").checked;
-    // Default to first color
-    const defaultDuck = DUCK_PALETTES[0];
+    const defaultDuck = getRandomDuckConfig(); // Random Start
 
     try {
         const roomId = await dbService.createRoom(state.user.uid, name, isPublic, defaultDuck);
@@ -52,9 +71,7 @@ document.getElementById("join-room-btn").addEventListener("click", () => {
 
 async function handleJoinRoom(roomId) {
     const name = document.getElementById("player-name-input").value || "Guest";
-    // Pick a random color for guests initially
-    const randomIdx = Math.floor(Math.random() * DUCK_PALETTES.length);
-    const defaultDuck = DUCK_PALETTES[randomIdx];
+    const defaultDuck = getRandomDuckConfig(); // Random Start
 
     try {
         const hostId = await dbService.joinRoom(roomId, state.user.uid, name, defaultDuck);
@@ -89,7 +106,7 @@ function handleEnterLobby(roomId, isHost) {
         startBtn.classList.remove("hidden");
         deleteBtn.classList.remove("hidden");
         waitMsg.classList.add("hidden");
-        startBtn.disabled = false; // Always enabled in v0.2.0
+        startBtn.disabled = false;
     } else {
         hostMsg.classList.add("hidden");
         startBtn.classList.add("hidden");
@@ -97,14 +114,19 @@ function handleEnterLobby(roomId, isHost) {
         waitMsg.classList.remove("hidden");
     }
 
-    // Init Color Picker
-    ui.initDuckSelection((index) => {
-        const config = DUCK_PALETTES[index];
-        dbService.updatePlayerConfig(roomId, state.user.uid, config, state.players);
-        ui.highlightSelectedDuck(index);
-    });
+    // --- SETUP CUSTOMIZATION ---
 
-    // Chat Setup
+    // 1. Get my current config from state (it was set during create/join)
+    // We need to fetch it freshly from DB or wait for first update,
+    // but initially we can rely on what we just sent or wait for the subscription to fire.
+    // Ideally, we init controls once we have the player data.
+
+    // Create a debounced updater
+    const debouncedUpdate = debounce((newConfig) => {
+        dbService.updatePlayerConfig(roomId, state.user.uid, newConfig, state.players);
+    }, 300); // Wait 300ms after last change before writing to DB
+
+    // Setup Chat
     if (state.chatUnsub) state.chatUnsub();
     state.chatUnsub = dbService.subscribeToChat(roomId, (msgs) => {
         ui.renderChatMessages(msgs);
@@ -125,16 +147,19 @@ function handleEnterLobby(roomId, isHost) {
         state.players = data.players || {};
         ui.updateLobbyPlayers(state.players, state.user.uid);
 
-        // Auto-select my current color in the UI
+        // SYNC MY CONTROLS
+        // We only init the controls once to avoid overwriting user input while they type
         const me = state.players[state.user.uid];
-        if (me?.config) {
-            const idx = DUCK_PALETTES.findIndex((d) => d.body === me.config.body);
-            if (idx !== -1) ui.highlightSelectedDuck(idx);
+        if (me?.config && !state.controlsInitialized) {
+            ui.initCustomization(me.config, (cfg) => debouncedUpdate(cfg));
+            state.controlsInitialized = true; // Flag to prevent re-init
         }
 
+        // If someone ELSE updates, we don't want to re-init OUR controls,
+        // but we DO want to see their color change in the player list (handled by updateLobbyPlayers)
+
         if (data.status === "racing" && state.raceStatus === "lobby") {
-            // PHASE 2: This is where we will trigger the new Canvas Engine
-            console.log("RACE STARTED! (Engine disabled for Phase 1)");
+            console.log("RACE STARTED!");
             state.raceStatus = "racing";
             ui.showPanel("game");
         } else if (data.status === "lobby" && state.raceStatus !== "lobby") {
@@ -143,6 +168,8 @@ function handleEnterLobby(roomId, isHost) {
         }
     });
 }
+
+// ... rest of startRace, backToLobby, resetToLobby (same as previous) ...
 
 document.getElementById("start-race-btn").addEventListener("click", async () => {
     if (state.isHost) {
@@ -159,6 +186,7 @@ function resetToLobby() {
     state.raceStatus = "lobby";
     state.room = null;
     state.isHost = false;
+    state.controlsInitialized = false; // Reset control flag
     if (state.chatUnsub) state.chatUnsub();
     ui.showPanel("start");
 }

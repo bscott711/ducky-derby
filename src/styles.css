@@ -577,9 +577,9 @@ input[type="text"] {
 #chat-overlay {
     position: absolute;
     bottom: 20px;
-    right: 20px;
+    left: 20px; /* MOVED: From right to left to uncover finish line */
     width: 300px;
-    height: 250px;
+    height: 250px; /* Expanded height */
     background: rgba(0, 0, 0, 0.6);
     border-radius: 12px;
     display: flex;
@@ -587,7 +587,48 @@ input[type="text"] {
     padding: 10px;
     z-index: 1000;
     backdrop-filter: blur(4px);
-    pointer-events: auto; /* Ensure clickable */
+    pointer-events: auto;
+    transition: height 0.3s ease, background 0.3s; /* Smooth animation */
+}
+
+/* New Collapsed State */
+#chat-overlay.collapsed {
+    height: 40px; /* Only show header */
+    background: rgba(0, 0, 0, 0.3); /* Less intrusive background */
+    overflow: hidden;
+}
+
+.chat-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: #ffd700;
+    font-weight: bold;
+    margin-bottom: 5px;
+    cursor: pointer; /* Allow clicking header to toggle */
+    user-select: none;
+}
+
+#chat-toggle-btn {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.5rem;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0 5px;
+}
+
+#chat-toggle-btn:hover {
+    color: #ffd700;
+}
+
+/* Wrapper to hide content cleanly when collapsed */
+#chat-content-wrapper {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
 }
 
 #chat-messages {
@@ -633,4 +674,75 @@ input[type="text"] {
     border-radius: 4px;
     cursor: pointer;
     font-weight: bold;
+}
+
+/* --- Customization UI (v0.2.0) --- */
+.customization-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 20px;
+    background: rgba(255, 255, 255, 0.5);
+    padding: 15px;
+    border-radius: 12px;
+}
+
+.duck-preview-box {
+    width: 120px;
+    height: 120px;
+    background: rgba(255, 255, 255, 0.8);
+    border: 2px solid #ccc;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.duck-preview-box svg {
+    width: 80%;
+    height: 80%;
+    filter: drop-shadow(2px 4px 6px rgba(0, 0, 0, 0.2));
+}
+
+.duck-controls {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    width: 100%;
+}
+
+.control-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+}
+
+.control-group label {
+    font-size: 0.9em;
+    font-weight: bold;
+    color: #555;
+}
+
+input[type="color"] {
+    -webkit-appearance: none;
+    border: none;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    cursor: pointer;
+    background: none;
+    padding: 0;
+    overflow: hidden;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+input[type="color"]::-webkit-color-swatch-wrapper {
+    padding: 0;
+}
+input[type="color"]::-webkit-color-swatch {
+    border: none;
+    border-radius: 50%;
+    border: 2px solid #fff;
 }
