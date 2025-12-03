@@ -1,5 +1,5 @@
 export const RACE_DISTANCE = 10000;
-export const NET_OFFSET = 800;
+export const NET_OFFSET = 400;
 
 // Physics Constants
 export const PHYSICS = {
