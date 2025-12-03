@@ -195,14 +195,10 @@ function startRace(seed) {
     // 1. Setup
     engine.setup(seed, realPlayers);
 
-    // NEW: Auto-Follow Local Player (Standard View)
-    // We update the UI button text to reflect this initial state
-    if (state.user?.uid) {
-        engine.setFollowId(state.user.uid);
-        ui.camBtn.textContent = "🎥 Camera: Me";
-    } else {
-        ui.camBtn.textContent = "🎥 Camera: Leader";
-    }
+    // NEW: Default to Leader view for clarity
+    // But update UI text so it's ready to toggle
+    engine.setFollowId(null);
+    ui.camBtn.textContent = "🎥 Camera: Leader";
 
     // 2. Countdown
     ui.runCountdown(() => {

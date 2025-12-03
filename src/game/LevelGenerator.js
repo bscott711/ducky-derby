@@ -1,4 +1,4 @@
-import { LEVEL_GEN, PHYSICS, POWERUPS, RACE_DISTANCE } from "../config.js";
+import { HUNTERS, LEVEL_GEN, PHYSICS, POWERUPS, RACE_DISTANCE } from "../config.js";
 import { mulberry32 } from "../utils/rng.js";
 
 export class LevelGenerator {
@@ -14,8 +14,8 @@ export class LevelGenerator {
         const rapids = [];
         const whirlpools = [];
         const powerupBoxes = [];
+        const hunters = []; // NEW
 
-        // Use fixed Game Width logic
         const center = PHYSICS.GAME_WIDTH / 2;
         const amplitude = 300;
         const frequency = 0.002;
@@ -104,10 +104,27 @@ export class LevelGenerator {
                 });
             }
 
-            // Decorations
+            // Bank Objects
             const leftBankX = segment.centerX - segment.width / 2;
             const rightBankX = segment.centerX + segment.width / 2;
 
+            // NEW: Hunters
+            if (
+                segment.y > 200 &&
+                segment.y < this.finishLineY &&
+                this.rng() < HUNTERS.SPAWN_RATE
+            ) {
+                const side = this.rng() > 0.5 ? -1 : 1;
+                const dist = 30 + this.rng() * 20;
+                hunters.push({
+                    x: side === -1 ? leftBankX - dist : rightBankX + dist,
+                    y: segment.y,
+                    cooldown: 0,
+                    activeShot: null,
+                });
+            }
+
+            // Trees
             if (this.rng() < LEVEL_GEN.TREE_DENSITY) {
                 const side = this.rng() > 0.5 ? -1 : 1;
                 const dist = 20 + this.rng() * 100;
@@ -121,6 +138,7 @@ export class LevelGenerator {
                 });
             }
 
+            // Grass
             if (this.rng() < LEVEL_GEN.GRASS_DENSITY) {
                 const side = this.rng() > 0.5 ? -1 : 1;
                 const dist = this.rng() * 300;
@@ -133,6 +151,7 @@ export class LevelGenerator {
                 });
             }
 
+            // Bank Rocks
             if (this.rng() < LEVEL_GEN.OBSTACLE_DENSITY) {
                 const side = this.rng() > 0.5 ? -1 : 1;
                 decorations.push({
@@ -145,6 +164,6 @@ export class LevelGenerator {
             }
         }
 
-        return { riverPath, obstacles, decorations, rapids, whirlpools, powerupBoxes };
+        return { riverPath, obstacles, decorations, rapids, whirlpools, powerupBoxes, hunters };
     }
 }

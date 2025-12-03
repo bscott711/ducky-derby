@@ -42,22 +42,19 @@ export class Renderer {
 
         ctx.save();
 
-        // 2. Camera Transform (Standard View)
-        const TARGET_VIEW_WIDTH = 550;
+        // 2. Camera Transform
+        const TARGET_VIEW_WIDTH = 600; // Increased slightly for safety
         const scale = Math.min(1.0, this.width / TARGET_VIEW_WIDTH);
 
+        // Center on screen
         ctx.translate(this.width / 2, this.height / 2);
         ctx.scale(scale, scale);
 
         // Move world so Camera Target is at Center Screen
         ctx.translate(-cameraX, -cameraY);
 
-        // Look Ahead Offset: Move world UP slightly so we see more "downstream"
-        const lookAhead = (this.height / scale) * 0.15;
-        ctx.translate(0, -lookAhead);
-
         // Render Bounds
-        const renderStart = cameraY - 500;
+        const renderStart = cameraY - 600;
         const renderEnd = cameraY + 1000;
 
         // 3. Decorations
@@ -331,7 +328,6 @@ export class Renderer {
             const pulse = 1 + Math.sin(globalTime * 20) * 0.1;
             ctx.scale(pulse, 1 / pulse);
         }
-        // Body
         ctx.beginPath();
         ctx.moveTo(20, 60);
         ctx.quadraticCurveTo(20, 90, 50, 90);
@@ -349,7 +345,6 @@ export class Renderer {
         ctx.lineWidth = 4;
         ctx.strokeStyle = "#333";
         ctx.stroke();
-        // Bill
         ctx.beginPath();
         ctx.moveTo(20, 35);
         ctx.quadraticCurveTo(5, 35, 5, 45);
@@ -358,7 +353,6 @@ export class Renderer {
         ctx.fillStyle = duck.beak;
         ctx.fill();
         ctx.stroke();
-        // Wing
         ctx.beginPath();
         ctx.moveTo(40, 65);
         ctx.quadraticCurveTo(50, 85, 70, 65);
@@ -366,7 +360,6 @@ export class Renderer {
         ctx.lineWidth = 4;
         ctx.lineCap = "round";
         ctx.stroke();
-        // Eye
         ctx.beginPath();
         ctx.arc(40, 30, 5, 0, Math.PI * 2);
         ctx.fillStyle = "white";
@@ -376,7 +369,6 @@ export class Renderer {
         ctx.fillStyle = "black";
         ctx.fill();
         ctx.restore();
-        // Name Tag & Icons
         ctx.save();
         ctx.translate(duck.x, duck.y - duck.z);
         ctx.fillStyle = "white";

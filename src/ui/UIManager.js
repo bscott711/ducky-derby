@@ -28,19 +28,11 @@ export class UIManager {
         this.waveEls = document.querySelectorAll(".wave");
         this.cloudLayerEl = document.getElementById("cloud-layer");
 
-        // NEW: Camera Toggle Button
+        // FIX: Append to BODY, not gameUI (which gets hidden during race)
         this.camBtn = document.createElement("button");
-        this.camBtn.className = "action-btn";
-        // Styling to make it float in the corner
-        this.camBtn.style.position = "absolute";
-        this.camBtn.style.top = "20px";
-        this.camBtn.style.right = "20px";
-        this.camBtn.style.width = "auto";
-        this.camBtn.style.padding = "10px 20px";
-        this.camBtn.style.zIndex = "1000";
-        this.camBtn.style.fontSize = "0.9rem";
+        this.camBtn.className = "floating-cam-btn";
         this.camBtn.textContent = "🎥 Camera: Auto";
-        this.gameUI.appendChild(this.camBtn);
+        document.body.appendChild(this.camBtn);
         this.camBtn.classList.add("hidden");
 
         this.initInternalListeners();
@@ -58,10 +50,37 @@ export class UIManager {
         if (this.chatHeader) this.chatHeader.onclick = toggleChat;
     }
 
-    // NEW: Allow main.js to hook into the camera click
+    setupInputListeners(onInput) {
+        window.addEventListener("keydown", (e) => {
+            if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") onInput("left", true);
+            if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") onInput("right", true);
+        });
+        window.addEventListener("keyup", (e) => {
+            if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") onInput("left", false);
+            if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") onInput("right", false);
+        });
+
+        window.addEventListener(
+            "touchstart",
+            (e) => {
+                if (e.target.tagName === "BUTTON" || e.target.tagName === "INPUT") return;
+                const touchX = e.touches[0].clientX;
+                const midPoint = window.innerWidth / 2;
+                if (touchX < midPoint) onInput("left", true);
+                else onInput("right", true);
+            },
+            { passive: false },
+        );
+
+        window.addEventListener("touchend", (e) => {
+            onInput("left", false);
+            onInput("right", false);
+        });
+    }
+
     setupCameraListener(callback) {
         this.camBtn.onclick = () => {
-            const nextMode = callback(); // main.js logic returns the new label
+            const nextMode = callback();
             this.camBtn.textContent = `🎥 Camera: ${nextMode}`;
         };
     }
@@ -100,13 +119,13 @@ export class UIManager {
             el.classList.add("hidden");
         }
 
-        // Hide camera button by default
+        // Default hidden
         this.camBtn.classList.add("hidden");
 
         if (panelName === "game") {
             this.gameUI.style.display = "none";
             this.chatOverlay.classList.remove("hidden");
-            // Show camera button in game
+            // Explicitly show button for game
             this.camBtn.classList.remove("hidden");
         } else if (panelName === "start") {
             this.gameUI.style.display = "flex";

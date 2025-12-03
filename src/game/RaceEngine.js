@@ -1,4 +1,12 @@
-import { MIN_RACERS, NET_OFFSET, NPC_NAMES, PHYSICS, POWERUPS, RACE_DISTANCE } from "../config.js";
+import {
+    HUNTERS,
+    MIN_RACERS,
+    NET_OFFSET,
+    NPC_NAMES,
+    PHYSICS,
+    POWERUPS,
+    RACE_DISTANCE,
+} from "../config.js";
 import { mulberry32 } from "../utils/rng.js";
 import { LevelGenerator } from "./LevelGenerator.js";
 import { Renderer } from "./Renderer.js";
@@ -15,6 +23,7 @@ export class RaceEngine {
         this.rapids = [];
         this.whirlpools = [];
         this.powerupBoxes = [];
+        this.hunters = [];
 
         this.cameraY = 0;
         this.cameraX = PHYSICS.GAME_WIDTH / 2;
@@ -22,10 +31,10 @@ export class RaceEngine {
         this.raceFinished = false;
         this.globalTime = 0;
 
-        // Follow Cam State
         this.followId = null;
 
-        // Fixed Timestep Variables
+        this.inputs = { left: false, right: false };
+
         this.accumulator = 0;
         this.lastTime = 0;
         this.FIXED_TIME_STEP = 1 / 60;
@@ -35,6 +44,11 @@ export class RaceEngine {
         this.followId = id;
     }
 
+    setInput(type, isPressed) {
+        if (type === "left") this.inputs.left = isPressed;
+        if (type === "right") this.inputs.right = isPressed;
+    }
+
     setup(seedVal, players) {
         const currentSeed = seedVal || Date.now();
         this.rng = mulberry32(currentSeed);
@@ -42,7 +56,6 @@ export class RaceEngine {
         this.globalTime = 0;
         this.accumulator = 0;
 
-        // 1. Generate World
         const levelGen = new LevelGenerator(currentSeed);
         const levelData = levelGen.generate();
 
@@ -52,8 +65,8 @@ export class RaceEngine {
         this.rapids = levelData.rapids;
         this.whirlpools = levelData.whirlpools;
         this.powerupBoxes = levelData.powerupBoxes;
+        this.hunters = levelData.hunters;
 
-        // 2. Prepare Racers
         const racerList = Object.values(players).sort((a, b) =>
             (a.id || "").localeCompare(b.id || ""),
         );
@@ -75,15 +88,18 @@ export class RaceEngine {
             }
         }
 
-        // 3. Spawn Ducks
         this.ducks = [];
         const bridgeY = -200;
+
+        // FIX: Correctly find the segment at the bridge position
         const segmentIndex = Math.floor((bridgeY + 500) / 5);
         const segment = this.riverPath[segmentIndex] || this.riverPath[0];
+
         const bridgeWidth = PHYSICS.RIVER_WIDTH + 140;
         const archHeight = 60;
 
         this.cameraX = segment.centerX;
+        this.cameraY = bridgeY;
 
         for (const p of racerList) {
             const spread = bridgeWidth * 0.6;
@@ -92,6 +108,8 @@ export class RaceEngine {
 
             const heightOnArch = archHeight * (1 - normX * normX);
             const startZ = heightOnArch + 20 + this.rng() * 10;
+
+            // FIX: Use accurate segment X
             const startX = segment.centerX;
 
             this.ducks.push({
@@ -115,9 +133,6 @@ export class RaceEngine {
                 originalRadius: PHYSICS.DUCK_RADIUS,
             });
         }
-
-        const leaderVisualY = Math.max(...this.ducks.map((d) => d.y - d.z));
-        this.cameraY = leaderVisualY - this.renderer.height * 0.4;
 
         this.render();
     }
@@ -160,10 +175,50 @@ export class RaceEngine {
         let finishedCount = 0;
         const netY = this.finishLineY + NET_OFFSET;
 
+        for (const hunter of this.hunters) {
+            if (hunter.cooldown > 0) hunter.cooldown -= timeScale;
+            if (hunter.activeShot) hunter.activeShot--;
+
+            if (hunter.cooldown <= 0) {
+                let closestDuck = null;
+                let minDistSq = HUNTERS.RANGE * HUNTERS.RANGE;
+
+                for (const duck of this.ducks) {
+                    if (duck.finished || duck.effect === "GHOST" || duck.effect === "HUNTED")
+                        continue;
+                    const dx = duck.x - hunter.x;
+                    const dy = duck.y - hunter.y;
+                    const distSq = dx * dx + dy * dy;
+                    if (distSq < minDistSq) {
+                        minDistSq = distSq;
+                        closestDuck = duck;
+                    }
+                }
+
+                if (closestDuck) {
+                    hunter.cooldown = HUNTERS.COOLDOWN;
+                    hunter.activeShot = 10;
+                    hunter.targetX = closestDuck.x;
+                    hunter.targetY = closestDuck.y;
+
+                    closestDuck.effect = "HUNTED";
+                    closestDuck.effectTimer = HUNTERS.DURATION;
+                    closestDuck.vx *= 0.5;
+                    closestDuck.vy *= 0.5;
+                }
+            }
+        }
+
         for (const duck of this.ducks) {
             if (duck.finished) finishedCount++;
 
-            // --- PHYSICS START ---
+            // Local Control - keeping active if user wants to play solo,
+            // but effectively benign in multi for now.
+            if (this.followId && duck.id === this.followId && !duck.finished && duck.z <= 0) {
+                if (this.inputs.left) duck.vx -= PHYSICS.STEER_FORCE;
+                if (this.inputs.right) duck.vx += PHYSICS.STEER_FORCE;
+            }
+
             if (duck.z > 0) {
                 duck.vz -= PHYSICS.GRAVITY * timeScale;
                 duck.z += duck.vz * timeScale;
@@ -212,7 +267,12 @@ export class RaceEngine {
                     }
                 }
                 let trapped = false;
-                if (duck.cooldownTimer <= 0 && duck.effect !== "GHOST" && !duck.finished) {
+                if (
+                    duck.cooldownTimer <= 0 &&
+                    duck.effect !== "GHOST" &&
+                    duck.effect !== "HUNTED" &&
+                    !duck.finished
+                ) {
                     for (const pool of this.whirlpools) {
                         const dx = duck.x - pool.x;
                         const dy = duck.y - pool.y;
@@ -269,6 +329,8 @@ export class RaceEngine {
                 }
                 let frictionVal = 0.96;
                 if (duck.effect === "ANCHOR") frictionVal = POWERUPS.ANCHOR_DRAG;
+                if (duck.effect === "HUNTED") frictionVal = HUNTERS.DRAG;
+
                 const friction = frictionVal ** timeScale;
                 duck.vx *= friction;
                 duck.vy *= friction;
@@ -279,7 +341,6 @@ export class RaceEngine {
                     duck.finishTime = performance.now();
                 }
             }
-            // --- PHYSICS END ---
         }
 
         // Collisions
@@ -301,46 +362,65 @@ export class RaceEngine {
                 const d2 = this.ducks[j];
                 if ((d1.finished && d2.finished) || d1.z > 0 || d2.z > 0) continue;
                 if (d1.effect === "GHOST" || d2.effect === "GHOST") continue;
+                if (d1.effect === "HUNTED" || d2.effect === "HUNTED") continue;
                 this.resolveCollision(d1, d2);
             }
         }
         for (const duck of this.ducks) {
             if (duck.z > 0) continue;
             this.resolveWallCollision(duck);
-            if (duck.effect === "GHOST") continue;
+            if (duck.effect === "GHOST" || duck.effect === "HUNTED") continue;
             for (const rock of this.obstacles) {
                 if (Math.abs(rock.y - duck.y) > 60) continue;
                 this.resolveRockCollision(duck, rock);
             }
         }
 
-        // --- CAMERA LOGIC UPDATED ---
-
+        // --- CAMERA LOGIC REWRITTEN ---
         let targetDuck = null;
-
-        // 1. Try to find the followed duck
         if (this.followId) {
             targetDuck = this.ducks.find((d) => d.id === this.followId);
         }
-
-        // 2. Fallback: Find leader if target not found
         if (!targetDuck) {
             const maxY = Math.max(...this.ducks.map((d) => d.y));
             targetDuck = this.ducks.find((d) => d.y === maxY);
         }
 
         if (targetDuck) {
-            const visualY = targetDuck.y - targetDuck.z;
-            let targetCamY = visualY - this.renderer.height * 0.4;
-
-            // Clamp so finish line/net don't scroll off
-            const maxCamY = this.finishLineY - 200;
-            if (targetCamY > maxCamY) targetCamY = maxCamY;
-
+            // A. Smooth Horizontal (Drifting)
             const targetCamX = targetDuck.x;
+            this.cameraX += (targetCamX - this.cameraX) * 0.02; // Super smooth 2% lerp per frame
+
+            // B. Rank-Based Vertical
+            // Create a temporary sorted array to determine rank efficiently
+            // (Only needs to happen once per frame, but doing it here for clarity)
+            const sortedDucks = [...this.ducks].sort((a, b) => b.y - a.y);
+            const rankIndex = sortedDucks.findIndex((d) => d.id === targetDuck.id);
+            const rankRatio = rankIndex / (this.ducks.length - 1 || 1);
+
+            // Interpolate Screen Position:
+            // 0.0 (Leader) -> -200 (Duck at Bottom)
+            // 1.0 (Last)   -> +200 (Duck at Top)
+            const viewOffset = -200 + rankRatio * 400;
+
+            let targetCamY = targetDuck.y + viewOffset;
+
+            // C. Smooth End-Game Stop
+            // Instead of hard-setting targetCamY when finished, just cap the MAXIMUM Y it can reach.
+            // This allows the camera to flow naturally to the end and then gently stop moving
+            // as the duck continues into the net.
+            const maxCamY = this.finishLineY + NET_OFFSET / 2 - this.renderer.height * 0.4;
+
+            if (targetCamY > maxCamY) {
+                targetCamY = maxCamY;
+                // If we hit the end, lock X slowly to center so we see the whole net
+                const endSeg = this.riverPath[Math.floor((this.finishLineY + NET_OFFSET) / 5)];
+                if (endSeg) {
+                    this.cameraX += (endSeg.centerX - this.cameraX) * 0.03;
+                }
+            }
 
             this.cameraY += (targetCamY - this.cameraY) * 0.05;
-            this.cameraX += (targetCamX - this.cameraX) * 0.05;
         }
 
         if (finishedCount === this.ducks.length) {
@@ -348,7 +428,7 @@ export class RaceEngine {
         }
     }
 
-    // ... [Helpers: collectPowerup, resolveCollision, etc. same as before] ...
+    // ... [Helpers] ...
     collectPowerup(duck, box) {
         box.active = false;
         const typeIndex = Math.floor(this.rng() * POWERUPS.TYPES.length);
@@ -451,6 +531,7 @@ export class RaceEngine {
             whirlpools: this.whirlpools,
             rapids: this.rapids,
             powerupBoxes: this.powerupBoxes,
+            hunters: this.hunters,
             globalTime: this.globalTime,
         });
     }

@@ -308,6 +308,40 @@ input[type="text"] {
     background: #45a049;
 }
 
+/* UPDATED: Floating Camera Button */
+.floating-cam-btn {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: #2ecc71; /* Bright Green */
+    color: white;
+    border: 3px solid white;
+    padding: 12px 24px;
+    border-radius: 30px;
+    font-size: 1.1rem;
+    font-weight: 900;
+    cursor: pointer;
+    z-index: 1000;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    pointer-events: auto;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.floating-cam-btn:hover {
+    background: #27ae60;
+    transform: scale(1.05);
+}
+
+.floating-cam-btn:active {
+    transform: scale(0.95);
+    transform: translateY(2px);
+}
+
 /* --- Customization Palette --- */
 .palette-grid {
     display: grid;
