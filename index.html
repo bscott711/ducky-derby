@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ducky Derby Multiplayer</title>
+    <title>Ducky Derby v0.2.0</title>
 </head>
 <body>
     <div class="sky">
@@ -17,6 +17,14 @@
         <div class="wave" id="wave-1"></div>
         <div class="wave" id="wave-2"></div>
         <div id="game-world"></div>
+    </div>
+
+    <div id="chat-overlay" class="hidden">
+        <div id="chat-messages"></div>
+        <div class="chat-input-row">
+            <input type="text" id="chat-input" placeholder="Say something..." maxlength="50">
+            <button id="send-chat-btn">Send</button>
+        </div>
     </div>
 
     <div id="game-ui">
@@ -59,8 +67,8 @@
             <h2 id="room-code-header">ROOM: ????</h2>
             <div class="room-code-display" id="lobby-code-display">????</div>
             
-            <h3>Pick Your Duck</h3>
-            <div class="duck-grid" id="duck-selection"></div>
+            <h3>Customize Your Duck</h3>
+            <div class="palette-grid" id="duck-selection"></div>
 
             <h3>Racers Ready:</h3>
             <div class="player-list" id="lobby-player-list"></div>
