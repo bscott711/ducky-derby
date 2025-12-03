@@ -1,4 +1,4 @@
-import { MIN_RACERS, NPC_NAMES, PHYSICS, POWERUPS, RACE_DISTANCE, NET_OFFSET } from "../config.js";
+import { MIN_RACERS, NET_OFFSET, NPC_NAMES, PHYSICS, POWERUPS, RACE_DISTANCE } from "../config.js";
 import { mulberry32 } from "../utils/rng.js";
 import { LevelGenerator } from "./LevelGenerator.js";
 import { Renderer } from "./Renderer.js";
@@ -37,7 +37,7 @@ export class RaceEngine {
         // 1. Generate World
         const levelGen = new LevelGenerator(currentSeed);
         const levelData = levelGen.generate();
-        
+
         this.riverPath = levelData.riverPath;
         this.obstacles = levelData.obstacles;
         this.decorations = levelData.decorations;
@@ -92,7 +92,9 @@ export class RaceEngine {
                 x: startX + jitterX,
                 y: bridgeY,
                 z: startZ,
-                vz: 0, vx: 0, vy: 0,
+                vz: 0,
+                vx: 0,
+                vy: 0,
                 radius: PHYSICS.DUCK_RADIUS,
                 mass: PHYSICS.DUCK_MASS,
                 finished: false,
@@ -106,12 +108,14 @@ export class RaceEngine {
 
         const leaderVisualY = Math.max(...this.ducks.map((d) => d.y - d.z));
         this.cameraY = leaderVisualY - this.renderer.height * 0.4;
-        
+
         this.render();
     }
 
     getSeededColor() {
-        const val = Math.floor(this.rng() * 16777215).toString(16).padStart(6, "0");
+        const val = Math.floor(this.rng() * 16777215)
+            .toString(16)
+            .padStart(6, "0");
         return `#${val}`;
     }
 
@@ -181,7 +185,8 @@ export class RaceEngine {
 
                     if (distSq < POWERUPS.GIANT_RANGE ** 2) {
                         const dist = Math.sqrt(distSq);
-                        const force = (1 - dist / POWERUPS.GIANT_RANGE) * POWERUPS.GIANT_GRAVITY * timeScale;
+                        const force =
+                            (1 - dist / POWERUPS.GIANT_RANGE) * POWERUPS.GIANT_GRAVITY * timeScale;
                         other.vx += (dx / dist) * force;
                         other.vy += (dy / dist) * force;
                     }
@@ -264,7 +269,9 @@ export class RaceEngine {
                         const distToBank = Math.min(duck.x - leftBank, rightBank - duck.x);
                         if (distToBank < PHYSICS.BANK_FRICTION_ZONE) {
                             const zoneFactor = Math.max(0, distToBank / PHYSICS.BANK_FRICTION_ZONE);
-                            const speedMod = PHYSICS.BANK_FLOW_MODIFIER + (1 - PHYSICS.BANK_FLOW_MODIFIER) * zoneFactor;
+                            const speedMod =
+                                PHYSICS.BANK_FLOW_MODIFIER +
+                                (1 - PHYSICS.BANK_FLOW_MODIFIER) * zoneFactor;
                             speed *= speedMod;
                         }
                     }
@@ -296,7 +303,10 @@ export class RaceEngine {
             if (duck.finished || duck.z > 0) continue;
             for (const box of this.powerupBoxes) {
                 if (!box.active) continue;
-                if (Math.abs(duck.x - box.x) < POWERUPS.BOX_SIZE && Math.abs(duck.y - box.y) < POWERUPS.BOX_SIZE) {
+                if (
+                    Math.abs(duck.x - box.x) < POWERUPS.BOX_SIZE &&
+                    Math.abs(duck.y - box.y) < POWERUPS.BOX_SIZE
+                ) {
                     this.collectPowerup(duck, box);
                 }
             }
@@ -307,11 +317,11 @@ export class RaceEngine {
             for (let j = i + 1; j < this.ducks.length; j++) {
                 const d1 = this.ducks[i];
                 const d2 = this.ducks[j];
-                
+
                 // Allow collision if finished (for net pile-up), but skip if falling
                 if (d1.z > 0 || d2.z > 0) continue;
                 if (d1.effect === "GHOST" || d2.effect === "GHOST") continue;
-                
+
                 this.resolveCollision(d1, d2);
             }
         }
@@ -329,8 +339,8 @@ export class RaceEngine {
         // Camera Logic (Clamped so finish line remains in view)
         const leaderVisualY = Math.max(...this.ducks.map((d) => d.y - d.z));
         let targetCamY = leaderVisualY - this.renderer.height * 0.4;
-        
-        // Clamp: Ensure the finish line never scrolls off the top 
+
+        // Clamp: Ensure the finish line never scrolls off the top
         // (Keep finish line at least 200px from the top)
         const maxCamY = this.finishLineY - 200;
         if (targetCamY > maxCamY) {
@@ -445,7 +455,7 @@ export class RaceEngine {
             whirlpools: this.whirlpools,
             rapids: this.rapids,
             powerupBoxes: this.powerupBoxes,
-            globalTime: this.globalTime
+            globalTime: this.globalTime,
         });
     }
 

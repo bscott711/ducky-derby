@@ -1,4 +1,4 @@
-import { PHYSICS, POWERUPS, RACE_DISTANCE, NET_OFFSET } from "../config.js";
+import { NET_OFFSET, PHYSICS, POWERUPS, RACE_DISTANCE } from "../config.js";
 
 export class Renderer {
     constructor(canvasId) {
@@ -29,7 +29,7 @@ export class Renderer {
             whirlpools,
             rapids,
             powerupBoxes,
-            globalTime
+            globalTime,
         } = state;
 
         const ctx = this.ctx;
@@ -201,21 +201,21 @@ export class Renderer {
         if (finishSeg) {
             const left = finishSeg.centerX - finishSeg.width / 2;
             const right = finishSeg.centerX + finishSeg.width / 2;
-            
+
             ctx.save();
             ctx.translate(left, this.finishLineY);
-            
+
             const checkSize = 20;
             const checks = Math.ceil((right - left) / checkSize);
-            for(let i=0; i<checks; i++) {
+            for (let i = 0; i < checks; i++) {
                 ctx.fillStyle = i % 2 === 0 ? "#FFFFFF" : "#000000";
                 ctx.fillRect(i * checkSize, 0, checkSize, 20);
             }
-            
+
             ctx.fillStyle = "#8B4513";
-            ctx.fillRect(-10, -30, 10, 50); 
-            ctx.fillRect(right - left, -30, 10, 50); 
-            
+            ctx.fillRect(-10, -30, 10, 50);
+            ctx.fillRect(right - left, -30, 10, 50);
+
             ctx.restore();
         }
     }
@@ -242,11 +242,11 @@ export class Renderer {
             ctx.rect(0, -20, right - left, 40);
             ctx.strokeStyle = "rgba(0,0,0,0.3)";
             ctx.lineWidth = 1;
-            
+
             // Cross hatching
             ctx.save();
             ctx.clip();
-            for (let i = 0; i < (right - left) + 40; i += 10) {
+            for (let i = 0; i < right - left + 40; i += 10) {
                 // Diagonals /
                 ctx.moveTo(i, -20);
                 ctx.lineTo(i - 40, 20);
@@ -305,7 +305,12 @@ export class Renderer {
 
         ctx.beginPath();
         ctx.moveTo(startX - 10, bridgeY - 15);
-        ctx.quadraticCurveTo(segment.centerX, bridgeY - archHeight * 2 - 15, endX + 10, bridgeY - 15);
+        ctx.quadraticCurveTo(
+            segment.centerX,
+            bridgeY - archHeight * 2 - 15,
+            endX + 10,
+            bridgeY - 15,
+        );
         ctx.lineWidth = 6;
         ctx.strokeStyle = "#CD853F";
         ctx.stroke();
