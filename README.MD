@@ -1,73 +1,83 @@
 # 🦆 Ducky Derby
 
-Ducky Derby is a browser-based side-scrolling racing game built with vanilla HTML, CSS, and JavaScript. Players place bets on one of four animated ducks and watch them race across a parallax-scrolling water track to the finish line.
+**Ducky Derby** is a chaotic, real-time multiplayer racing game powered by a custom 2D physics engine. Players create lobbies, design their own custom ducks, and race down a procedurally generated river filled with rapids, whirlpools, and jagged rocks.
 
-![Demo](/demo.png)
+Built with **HTML5 Canvas**, **JavaScript Modules**, and **Firebase**, it supports infinite concurrent ducks, elastic collisions, and synchronized physics across all devices.
 
-🎮 How to Play
+---
 
-Open the Game: Load index.html in any modern web browser.
+## 🎮 How to Play
 
-Place Your Bet: Select your favorite duck from the roster:
+1. **Join the Lobby:** Open the game and enter your name.
+    * **Host:** Create a new public or private room.
+    * **Join:** Browse the public list or enter a room code.
+2. **Customize:** Use the color picker to design your duck's Body and Beak colors.
+3. **Wait for Drop:** Once the host starts the race, a countdown begins on the bridge.
+4. **Race:** Watch the physics take over!
+    * **Avoid:** Rocks (they bounce you) and Whirlpools (they trap you).
+    * **Grab:** Mystery Boxes (?) for random power-ups.
+5. **Win:** The first duck to cross the finish line takes the crown!
 
-🟡 Sir Quacks: The golden standard.
+---
 
-🔵 Mallard Mike: Teal and tenacious.
+## ✨ New Features (v0.2.0)
 
-🟣 Speedy: Pink and aerodynamic.
+### 🌊 Physics & World
 
-👿 Darkwing: The purple terror of the night.
+* **Canvas Engine:** Rebuilt from scratch using HTML5 Canvas for high-performance rendering.
+* **Fluid Dynamics:** Ducks are pushed by river currents, accelerate in rapids, and drift in friction zones near the banks.
+* **Procedural Generation:** Every race features a unique, winding river path with randomly placed obstacles and decorations.
+* **Elastic Collisions:** Ducks bounce off each other and obstacles with realistic momentum transfer.
 
-Watch the Race: The ducks race across the screen with randomized speeds and momentum.
+### ⚔️ Multiplayer Chaos
 
-Win or Lose: See the final podium results. If your duck wins, enjoy the confetti!
+* **Power-Up System:** Mystery boxes grant temporary abilities:
+  * **⚡ Speed:** Instant velocity boost.
+  * **🪐 Giant:** Grow 2.5x size and pull other ducks in with your gravity.
+  * **👻 Ghost:** Pass through rocks and other ducks.
+  * **🏀 Bouncy:** Super-elastic collisions.
+  * **⚓ Anchor:** Heavy drag (the "bad" power-up).
+* **NPC Bots:** Empty slots are automatically filled with bots ("Quackers", "Waddles") so the river is always full.
+* **Spectator Chat:** Live chat overlay to talk trash during the race.
 
-✨ Features
+### 🎨 Visuals & Polish
 
-Single File Architecture: The entire game (HTML, CSS, JS, and SVG assets) is contained in index.html for instant loading and portability.
+* **Bridge Drop Start:** Ducks spawn on a 3D-styled arched bridge and drop into the water on "GO!".
+* **Dynamic Camera:** Smoothly tracks the race leader.
+* **Live Customization:** See your duck update in real-time as you pick colors.
 
-Procedural Animation: Ducks use momentum-based speed logic and sine-wave bobbing for natural swimming motion.
+---
 
-Parallax Scrolling: Background waves and clouds move at different speeds to create depth.
+## 🛠️ Tech Stack
 
-Dynamic Camera: The view smoothly pans to follow the race leader.
+* **Frontend:** HTML5 Canvas, CSS3, Vanilla JavaScript (ES6 Modules)
+* **Backend:** Firebase Firestore (Real-time sync) & Authentication (Anonymous login)
+* **Build Tool:** Vite
+* **Physics:** Custom verlet-style 2D physics loop (60hz fixed timestep)
 
-Responsive Design: Works on desktop and mobile viewports.
+---
 
-🛠️ Tech Stack
+## 🚀 Future Roadmap
 
-HTML5
+* [ ] **Sound Effects:** Add splashes, quacks, and collision "boings".
+* [ ] **Spectator Tools:** "Follow Cam" to click and spectate specific ducks.
+* [ ] **Leaderboards:** Track total wins across session.
+* [ ] **Seasons:** Different biomes (Snow, Lava, Space).
 
-CSS3 (Flexbox, Grid, CSS Variables, Keyframe Animations)
+---
 
-JavaScript (ES6+, requestAnimationFrame loop)
-
-SVG: All graphics are generated inline via code—no external image assets required.
-
-🚀 Future Roadmap
-
-[ ] Power-ups: Add random speed boosts or obstacles in the water.
-
-[ ] Tournament Mode: Track wins across multiple races.
-
-[ ] Sound Effects: Add splashing and quacking sounds.
-
-[ ] Customization: Allow players to name their ducks.
-
-🤝 Contributing
+## 🤝 Contributing
 
 Contributions are welcome! Here's how to get started:
 
-Fork the repository.
+1. Fork the repository.
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Commit your changes.
+4. Push to the branch.
+5. Open a Pull Request.
 
-Create a feature branch: git checkout -b feature/new-powerup
+---
 
-Commit your changes.
+## 📄 License
 
-Push to the branch.
-
-Open a Pull Request.
-
-[License](./LICENSE)
-
-This project is open source and available under the MIT License.
+This project is open source and available under the [MIT License](LICENSE).
