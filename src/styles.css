@@ -739,3 +739,36 @@ input[type="color"]::-webkit-color-swatch {
     border-radius: 50%;
     border: 2px solid #fff;
 }
+
+#countdown-overlay {
+    position: absolute;
+    top: 40%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 8rem;
+    font-family: "Segoe UI", sans-serif;
+    font-weight: 900;
+    color: #ffd700;
+    text-shadow: 0 0 10px rgba(0, 0, 0, 0.5), 4px 4px 0 #333;
+    pointer-events: none;
+    z-index: 2000;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+#countdown-overlay.active {
+    opacity: 1;
+    animation: pulse 0.8s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        transform: translate(-50%, -50%) scale(1);
+    }
+    50% {
+        transform: translate(-50%, -50%) scale(1.2);
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(1);
+    }
+}

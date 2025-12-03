@@ -1,5 +1,4 @@
 import "./styles.css";
-// NEW: Import NPC config
 import { MIN_RACERS, NPC_NAMES } from "./config.js";
 import { RaceEngine } from "./game/RaceEngine.js";
 import { authService, dbService } from "./services/firebase.js";
@@ -12,13 +11,13 @@ const state = {
     user: null,
     room: null,
     isHost: false,
-    raceStatus: "lobby",
+    raceStatus: "lobby", // lobby, racing, finished
     players: {},
     chatUnsub: null,
     controlsInitialized: false,
 };
 
-// --- HELPER: Random Color Generator ---
+// --- HELPERS ---
 function getRandomHex() {
     return `#${Math.floor(Math.random() * 16777215)
         .toString(16)
@@ -120,12 +119,10 @@ function handleEnterLobby(roomId, isHost) {
         waitMsg.classList.remove("hidden");
     }
 
-    // --- SETUP CUSTOMIZATION ---
     const debouncedUpdate = debounce((newConfig) => {
         dbService.updatePlayerConfig(roomId, state.user.uid, newConfig, state.players);
     }, 300);
 
-    // Setup Chat
     if (state.chatUnsub) state.chatUnsub();
     state.chatUnsub = dbService.subscribeToChat(roomId, (msgs) => {
         ui.renderChatMessages(msgs);
@@ -135,7 +132,6 @@ function handleEnterLobby(roomId, isHost) {
         dbService.sendChatMessage(roomId, state.user.uid, myName, text);
     });
 
-    // Room Subscription
     dbService.subscribeToRoom(roomId, (data) => {
         if (!data) {
             alert("Room closed.");
@@ -163,7 +159,6 @@ function handleEnterLobby(roomId, isHost) {
     });
 }
 
-// --- GAME STATE ---
 document.getElementById("start-race-btn").addEventListener("click", async () => {
     if (state.isHost) {
         const seed = Math.floor(Math.random() * 1000000);
@@ -182,11 +177,10 @@ function startRace(seed) {
     state.raceStatus = "racing";
     ui.showPanel("game");
 
-    // --- NEW: GENERATE NPCs ---
     const realPlayers = Object.values(state.players);
-    const racers = [...realPlayers]; // Start with real players
+    const racers = [...realPlayers];
 
-    // Fill with NPCs if fewer than MIN_RACERS
+    // NPC Logic
     if (racers.length < MIN_RACERS) {
         const needed = MIN_RACERS - racers.length;
         for (let i = 0; i < needed; i++) {
@@ -199,29 +193,33 @@ function startRace(seed) {
         }
     }
 
-    // Pass the combined list (Real + NPCs) to the engine
-    engine.start(seed, racers, (finishOrder) => {
-        state.raceStatus = "finished";
-        console.log("🏆 Race Finished", finishOrder);
+    // --- FIX: The Sequence ---
+    // 1. Setup World (Draw Bridge, Place Ducks)
+    engine.setup(seed, racers);
 
-        setTimeout(() => {
-            ui.showPanel("results");
+    // 2. Countdown Animation
+    ui.runCountdown(() => {
+        // 3. Start Physics Loop
+        engine.run((finishOrder) => {
+            state.raceStatus = "finished";
+            console.log("🏆 Race Finished", finishOrder);
 
-            // Find my rank (using name since NPCs don't have UIDs)
-            const myName = state.players[state.user.uid]?.name;
-            const myRank = finishOrder.findIndex((d) => d.name === myName);
+            setTimeout(() => {
+                ui.showPanel("results");
+                const myName = state.players[state.user.uid]?.name;
+                const myRank = finishOrder.findIndex((d) => d.name === myName);
+                ui.showResults(finishOrder, state.players, myRank, state.user.uid);
 
-            ui.showResults(finishOrder, state.players, myRank, state.user.uid);
-
-            const backBtn = document.getElementById("back-to-lobby-btn");
-            if (state.isHost) {
-                backBtn.textContent = "Back to Lobby";
-                backBtn.disabled = false;
-            } else {
-                backBtn.textContent = "Waiting for Host...";
-                backBtn.disabled = true;
-            }
-        }, 1000);
+                const backBtn = document.getElementById("back-to-lobby-btn");
+                if (state.isHost) {
+                    backBtn.textContent = "Back to Lobby";
+                    backBtn.disabled = false;
+                } else {
+                    backBtn.textContent = "Waiting for Host...";
+                    backBtn.disabled = true;
+                }
+            }, 1000);
+        });
     });
 }
 

@@ -28,7 +28,8 @@ export class RaceEngine {
         this.canvas.height = window.innerHeight;
     }
 
-    start(seedVal, players, onFinish) {
+    // --- PHASE 1: SETUP (Static) ---
+    setup(seedVal, players) {
         let currentSeed = seedVal;
         if (!currentSeed) {
             console.warn("⚠️ No seed provided, using fallback");
@@ -36,25 +37,33 @@ export class RaceEngine {
         }
 
         this.rng = mulberry32(currentSeed);
-        this.onFinishCallback = onFinish;
         this.raceFinished = false;
-        this.cameraY = 0;
         this.globalTime = 0;
 
-        // 1. Generate the World
+        // 1. Generate World
         this.generateLevel();
 
         // 2. Spawn Ducks
         this.ducks = [];
         const playerList = Object.values(players);
 
-        for (const p of playerList) {
-            const jitterX = (this.rng() - 0.5) * 60;
-            const jitterY = (this.rng() - 0.5) * 60;
-            const spawnY = jitterY - 200;
+        // Find bridge parameters for spawn logic
+        const bridgeY = -200;
+        const segmentIndex = Math.floor((bridgeY + 500) / 5);
+        const segment = this.riverPath[segmentIndex] || this.riverPath[0];
+        const bridgeWidth = PHYSICS.RIVER_WIDTH + 140;
+        const archHeight = 60;
 
-            const segmentIndex = Math.floor((spawnY + 500) / 5);
-            const segment = this.riverPath[segmentIndex] || this.riverPath[0];
+        for (const p of playerList) {
+            // Random spread on bridge
+            const spread = bridgeWidth * 0.6;
+            const jitterX = (this.rng() - 0.5) * spread;
+
+            // Calculate Arch Height at this X
+            const normX = jitterX / (bridgeWidth / 2);
+            const archY = bridgeY - archHeight * (1 - normX * normX);
+            const spawnY = archY - 10 - this.rng() * 20; // Stand on top
+
             const startX = segment ? segment.centerX : this.canvas.width / 2;
 
             this.ducks.push({
@@ -74,6 +83,17 @@ export class RaceEngine {
             });
         }
 
+        // 3. Snap Camera
+        const leaderY = Math.max(...this.ducks.map((d) => d.y));
+        this.cameraY = leaderY - this.canvas.height * 0.4;
+
+        // 4. Initial Render
+        this.render();
+    }
+
+    // --- PHASE 2: RUN (Active) ---
+    run(onFinish) {
+        this.onFinishCallback = onFinish;
         this.lastTime = performance.now();
         this.loop();
     }
@@ -89,11 +109,9 @@ export class RaceEngine {
         const amplitude = 300;
         const frequency = 0.002;
 
-        // --- 1. Generate River Path ---
         for (let y = -500; y < this.finishLineY + 2000; y += 5) {
             const curve = Math.sin(y * frequency) * amplitude;
             const noise = (this.rng() - 0.5) * 3;
-
             this.riverPath.push({
                 y: y,
                 centerX: center + curve + noise,
@@ -101,12 +119,10 @@ export class RaceEngine {
             });
         }
 
-        // --- 2. Generate Features ---
         let inRapid = false;
         let rapidEnd = 0;
 
         for (const segment of this.riverPath) {
-            // A. Rapids
             if (
                 !inRapid &&
                 segment.y < this.finishLineY &&
@@ -116,11 +132,8 @@ export class RaceEngine {
                 rapidEnd = segment.y + LEVEL_GEN.RAPID_LENGTH;
                 this.rapids.push({ startY: segment.y, endY: rapidEnd });
             }
-            if (inRapid && segment.y > rapidEnd) {
-                inRapid = false;
-            }
+            if (inRapid && segment.y > rapidEnd) inRapid = false;
 
-            // B. Whirlpools
             if (
                 segment.y > 500 &&
                 segment.y < this.finishLineY &&
@@ -133,7 +146,6 @@ export class RaceEngine {
                 });
             }
 
-            // C. Rocks
             if (
                 segment.y > 0 &&
                 segment.y < this.finishLineY &&
@@ -151,10 +163,7 @@ export class RaceEngine {
                     const varR =
                         r *
                         (1 - PHYSICS.ROCK_JAGGEDNESS / 2 + this.rng() * PHYSICS.ROCK_JAGGEDNESS);
-                    vertices.push({
-                        x: Math.cos(angle) * varR,
-                        y: Math.sin(angle) * varR,
-                    });
+                    vertices.push({ x: Math.cos(angle) * varR, y: Math.sin(angle) * varR });
                 }
 
                 this.obstacles.push({
@@ -166,15 +175,14 @@ export class RaceEngine {
                 });
             }
 
-            // D. Decorations
             const leftBankX = segment.centerX - segment.width / 2;
             const rightBankX = segment.centerX + segment.width / 2;
 
             if (this.rng() < LEVEL_GEN.TREE_DENSITY) {
                 const side = this.rng() > 0.5 ? -1 : 1;
-                const distFromBank = 20 + this.rng() * 100;
+                const dist = 20 + this.rng() * 100;
                 this.decorations.push({
-                    x: side === -1 ? leftBankX - distFromBank : rightBankX + distFromBank,
+                    x: side === -1 ? leftBankX - dist : rightBankX + dist,
                     y: segment.y,
                     radius: 15 + this.rng() * 15,
                     color1: "#228B22",
@@ -234,7 +242,6 @@ export class RaceEngine {
 
             if (duck.cooldownTimer > 0) duck.cooldownTimer -= timeScale;
 
-            // 1. Environment Forces
             const segmentIndex = Math.floor((duck.y + 500) / 5);
             const currentSeg = this.riverPath[segmentIndex];
             const nextSeg = this.riverPath[segmentIndex + 20];
@@ -247,7 +254,6 @@ export class RaceEngine {
                 }
             }
 
-            // 2. Whirlpool Logic
             let trapped = false;
             if (duck.cooldownTimer <= 0) {
                 for (const pool of this.whirlpools) {
@@ -258,13 +264,10 @@ export class RaceEngine {
                     if (dist < pool.radius * 1.5) {
                         trapped = true;
                         duck.trapTimer += timeScale;
-
                         const tx = -dy / dist;
                         const ty = dx / dist;
-
                         duck.vx -= (dx / dist) * PHYSICS.WHIRLPOOL_PULL * timeScale;
                         duck.vy -= (dy / dist) * PHYSICS.WHIRLPOOL_PULL * timeScale;
-
                         duck.vx += tx * PHYSICS.WHIRLPOOL_SPIN * timeScale;
                         duck.vy += ty * PHYSICS.WHIRLPOOL_SPIN * timeScale;
 
@@ -278,7 +281,6 @@ export class RaceEngine {
             }
             if (!trapped) duck.trapTimer = Math.max(0, duck.trapTimer - timeScale);
 
-            // 3. River Flow
             if (duck.trapTimer < 60) {
                 let flowX = 0;
                 let flowY = 1;
@@ -294,23 +296,17 @@ export class RaceEngine {
                 let speed = PHYSICS.FLOW_SPEED;
                 let turb = PHYSICS.TURBULENCE;
 
-                // A. Apply Rapids Modifiers
                 if (inRapid) {
                     speed += PHYSICS.RAPID_SPEED_BOOST;
                     turb = PHYSICS.RAPID_TURBULENCE;
                 }
 
-                // B. Apply Bank Friction (NEW)
                 if (currentSeg) {
                     const leftBank = currentSeg.centerX - currentSeg.width / 2;
                     const rightBank = currentSeg.centerX + currentSeg.width / 2;
-                    // Distance to nearest bank
                     const distToBank = Math.min(duck.x - leftBank, rightBank - duck.x);
-
                     if (distToBank < PHYSICS.BANK_FRICTION_ZONE) {
-                        // 0 at wall, 1 at friction zone boundary
                         const zoneFactor = Math.max(0, distToBank / PHYSICS.BANK_FRICTION_ZONE);
-                        // Lerp between MIN_SPEED_MODIFIER (e.g. 0.4) and 1.0
                         const speedMod =
                             PHYSICS.BANK_FLOW_MODIFIER +
                             (1 - PHYSICS.BANK_FLOW_MODIFIER) * zoneFactor;
@@ -336,7 +332,6 @@ export class RaceEngine {
             }
         }
 
-        // Collisions
         for (let i = 0; i < this.ducks.length; i++) {
             for (let j = i + 1; j < this.ducks.length; j++) {
                 if (this.ducks[i].finished || this.ducks[j].finished) continue;
@@ -344,18 +339,15 @@ export class RaceEngine {
             }
         }
 
-        // Rock Collisions & Walls
         for (const duck of this.ducks) {
             if (duck.finished) continue;
             this.resolveWallCollision(duck);
-
             for (const rock of this.obstacles) {
                 if (Math.abs(rock.y - duck.y) > 60) continue;
                 this.resolveRockCollision(duck, rock);
             }
         }
 
-        // Camera
         const leaderY = Math.max(...this.ducks.map((d) => d.y));
         const targetCamY = leaderY - this.canvas.height * 0.4;
         this.cameraY += (targetCamY - this.cameraY) * 0.05 * timeScale;
@@ -482,11 +474,9 @@ export class RaceEngine {
         // 4. Whirlpools
         for (const pool of this.whirlpools) {
             if (pool.y < renderStart || pool.y > renderEnd) continue;
-
             ctx.save();
             ctx.translate(pool.x, pool.y);
             ctx.rotate(this.globalTime * 2);
-
             ctx.beginPath();
             ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
             ctx.lineWidth = 3;
@@ -518,7 +508,6 @@ export class RaceEngine {
                 const xOff = Math.sin(i * 0.1 + timeOffset) * (p.width * 0.4);
                 ctx.moveTo(p.centerX + xOff, p.y);
                 ctx.lineTo(p.centerX + xOff, p.y + 20);
-
                 const xOff2 = Math.cos(i * 0.15 + timeOffset) * (p.width * 0.3);
                 ctx.moveTo(p.centerX + xOff2, p.y + 10);
                 ctx.lineTo(p.centerX + xOff2, p.y + 30);
@@ -529,35 +518,29 @@ export class RaceEngine {
         // 6. Obstacles
         for (const rock of this.obstacles) {
             if (rock.y < renderStart || rock.y > renderEnd) continue;
-
             ctx.save();
             ctx.translate(rock.x, rock.y);
             ctx.rotate(rock.rotation);
-
             ctx.beginPath();
             const v = rock.vertices;
             ctx.moveTo(v[0].x, v[0].y);
             for (let i = 1; i < v.length; i++) ctx.lineTo(v[i].x, v[i].y);
             ctx.closePath();
-
             ctx.fillStyle = "#808080";
             ctx.fill();
             ctx.strokeStyle = "#555";
             ctx.lineWidth = 2;
             ctx.stroke();
-
             ctx.beginPath();
             ctx.moveTo(0, 0);
             ctx.lineTo(v[0].x * 0.5, v[0].y * 0.5);
             ctx.stroke();
-
             ctx.restore();
         }
 
         // 7. Bank Decorations
         for (const deco of this.decorations) {
             if (deco.y < renderStart || deco.y > renderEnd) continue;
-
             if (deco.type === "tree") {
                 ctx.beginPath();
                 ctx.arc(deco.x, deco.y, deco.radius, 0, Math.PI * 2);
@@ -575,16 +558,70 @@ export class RaceEngine {
             }
         }
 
-        // 8. Finish Line
+        // 8. Bridge
+        this.drawBridge(ctx);
+
+        // 9. Finish Line
         ctx.fillStyle = "white";
         ctx.fillRect(0, this.finishLineY, width, 20);
 
-        // 9. Ducks
+        // 10. Ducks
         for (const duck of this.ducks) {
             if (duck.finished) ctx.globalAlpha = 0.6;
             this.drawDuck(ctx, duck);
             ctx.globalAlpha = 1.0;
         }
+
+        ctx.restore();
+    }
+
+    drawBridge(ctx) {
+        const bridgeY = -200;
+        const segmentIndex = Math.floor((bridgeY + 500) / 5);
+        const segment = this.riverPath[segmentIndex];
+
+        if (!segment) return;
+
+        const bridgeWidth = PHYSICS.RIVER_WIDTH + 140;
+        const startX = segment.centerX - bridgeWidth / 2;
+        const endX = segment.centerX + bridgeWidth / 2;
+        const archHeight = 60;
+
+        ctx.save();
+
+        ctx.beginPath();
+        ctx.moveTo(startX, bridgeY + 20);
+        ctx.quadraticCurveTo(segment.centerX, bridgeY - 40, endX, bridgeY + 20);
+        ctx.strokeStyle = "rgba(0,0,0,0.2)";
+        ctx.lineWidth = 15;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(startX - 10, bridgeY);
+        ctx.quadraticCurveTo(segment.centerX, bridgeY - archHeight * 2, endX + 10, bridgeY);
+        ctx.lineWidth = 40;
+        ctx.strokeStyle = "#8B4513";
+        ctx.lineCap = "butt";
+        ctx.stroke();
+
+        ctx.strokeStyle = "#A0522D";
+        ctx.lineWidth = 3;
+        ctx.globalCompositeOperation = "source-atop";
+        ctx.lineWidth = 34;
+        ctx.strokeStyle = "#8B4513";
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(startX - 10, bridgeY - 15);
+        ctx.quadraticCurveTo(
+            segment.centerX,
+            bridgeY - archHeight * 2 - 15,
+            endX + 10,
+            bridgeY - 15,
+        );
+        ctx.lineWidth = 6;
+        ctx.strokeStyle = "#CD853F";
+        ctx.stroke();
 
         ctx.restore();
     }
@@ -599,7 +636,6 @@ export class RaceEngine {
 
         ctx.translate(-50, -60);
 
-        // Body
         ctx.beginPath();
         ctx.moveTo(20, 60);
         ctx.quadraticCurveTo(20, 90, 50, 90);
@@ -612,14 +648,12 @@ export class RaceEngine {
         ctx.quadraticCurveTo(20, 10, 20, 40);
         ctx.lineTo(20, 60);
         ctx.closePath();
-
         ctx.fillStyle = duck.color;
         ctx.fill();
         ctx.lineWidth = 4;
         ctx.strokeStyle = "#333";
         ctx.stroke();
 
-        // Beak
         ctx.beginPath();
         ctx.moveTo(20, 35);
         ctx.quadraticCurveTo(5, 35, 5, 45);
@@ -629,7 +663,6 @@ export class RaceEngine {
         ctx.fill();
         ctx.stroke();
 
-        // Wing
         ctx.beginPath();
         ctx.moveTo(40, 65);
         ctx.quadraticCurveTo(50, 85, 70, 65);
@@ -638,7 +671,6 @@ export class RaceEngine {
         ctx.lineCap = "round";
         ctx.stroke();
 
-        // Eye
         ctx.beginPath();
         ctx.arc(40, 30, 5, 0, Math.PI * 2);
         ctx.fillStyle = "white";
@@ -650,7 +682,6 @@ export class RaceEngine {
 
         ctx.restore();
 
-        // Name Tag
         ctx.save();
         ctx.translate(duck.x, duck.y);
         ctx.fillStyle = "white";
