@@ -45,7 +45,6 @@ export class RaceEngine {
             const jitterY = (this.rng() - 0.5) * 60;
             const spawnY = jitterY - 200; // Spawn above screen
 
-            // FIX 1: Spawn relative to River Center, not Screen Center
             // Find the river segment closest to this Y position
             const segmentIndex = Math.floor((spawnY + 500) / 5);
             const segment = this.riverPath[segmentIndex] || this.riverPath[0];
@@ -150,12 +149,18 @@ export class RaceEngine {
         // 2. Collisions
         for (let i = 0; i < this.ducks.length; i++) {
             for (let j = i + 1; j < this.ducks.length; j++) {
+                // FIX: If either duck has finished, they are "ghosts" to each other.
+                // This prevents pile-ups at the finish line.
+                if (this.ducks[i].finished || this.ducks[j].finished) continue;
+
                 this.resolveCollision(this.ducks[i], this.ducks[j]);
             }
         }
 
         // 3. Walls
         for (const duck of this.ducks) {
+            // Finished ducks also ignore walls (saves calculation time)
+            if (duck.finished) continue;
             this.resolveWallCollision(duck);
         }
 
@@ -214,7 +219,6 @@ export class RaceEngine {
 
         if (duck.x - duck.radius < leftBank) {
             duck.x = leftBank + duck.radius;
-            // Add a hard "push" (0.5) to prevent sticking to the wall
             duck.vx = Math.abs(duck.vx) * PHYSICS.WALL_DAMPING + 0.5;
         } else if (duck.x + duck.radius > rightBank) {
             duck.x = rightBank - duck.radius;
@@ -254,7 +258,10 @@ export class RaceEngine {
 
         // Ducks
         for (const duck of this.ducks) {
+            // Optional: Draw finished ducks slightly transparent to emphasize they are "done"
+            if (duck.finished) ctx.globalAlpha = 0.6;
             this.drawDuck(ctx, duck);
+            ctx.globalAlpha = 1.0;
         }
 
         ctx.restore();
@@ -265,11 +272,6 @@ export class RaceEngine {
         ctx.translate(duck.x, duck.y);
 
         const scale = duck.radius / 35;
-
-        // FIX 2: INVERTED Orientation Check
-        // Default SVG faces LEFT.
-        // If moving Right (vx > 0.1), we want to face Right -> Flip (-scale)
-        // If moving Left (vx < -0.1), we want to face Left -> Normal (scale)
         const facingRight = duck.vx > 0.1;
         ctx.scale(facingRight ? -scale : scale, scale);
 
