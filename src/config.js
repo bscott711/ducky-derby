@@ -1,5 +1,5 @@
 export const RACE_DISTANCE = 10000;
-export const NET_OFFSET = 200;
+export const NET_OFFSET = 400;
 
 // Physics Constants
 export const PHYSICS = {
@@ -12,7 +12,10 @@ export const PHYSICS = {
     TURBULENCE: 0.2,
     GRAVITY: 0.8,
 
-    // NEW: Fixed Logical Width (The "Universe" size)
+    // Steering
+    STEER_FORCE: 0.1,
+
+    // Fixed Logical Width (The "Universe" size)
     GAME_WIDTH: 800,
 
     // Rapids
@@ -50,6 +53,16 @@ export const POWERUPS = {
     ANCHOR_DRAG: 0.9,
 
     TYPES: ["GIANT", "GHOST", "BOUNCY", "SPEED", "ANCHOR"],
+};
+
+// Hunter Configuration
+export const HUNTERS = {
+    SPAWN_RATE: 0.0015,
+    RANGE: 250,
+    COOLDOWN: 180,
+    DURATION: 120,
+    DRAG: 0.85,
+    COLOR: "#e74c3c",
 };
 
 // Generation Settings

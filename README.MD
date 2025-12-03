@@ -14,22 +14,39 @@ Built with **HTML5 Canvas**, **JavaScript Modules**, and **Firebase**, it suppor
 2. **Customize:** Use the color picker to design your duck's Body and Beak colors.
 3. **Wait for Drop:** Once the host starts the race, a countdown begins on the bridge.
 4. **Race:** Watch the physics take over!
-    * **Avoid:** Rocks (they bounce you) and Whirlpools (they trap you).
+    * **Avoid:** Rocks (bounce), Whirlpools (trap), and Hunters (lasers).
     * **Grab:** Mystery Boxes (?) for random power-ups.
-5. **Win:** The first duck to cross the finish line takes the crown!
+5. **Win:** The first duck to cross the finish line (and hit the net) takes the crown!
 
 ---
 
-## ✨ New Features (v0.2.0)
+## ✨ New Features (v0.3.0)
 
-### 🌊 Physics & World
+### 🎥 Spectator Tools & Camera
 
-* **Canvas Engine:** Rebuilt from scratch using HTML5 Canvas for high-performance rendering.
-* **Fluid Dynamics:** Ducks are pushed by river currents, accelerate in rapids, and drift in friction zones near the banks.
-* **Procedural Generation:** Every race features a unique, winding river path with randomly placed obstacles and decorations.
-* **Elastic Collisions:** Ducks bounce off each other and obstacles with realistic momentum transfer.
+* **Follow Cam:** Toggle between "Leader" (Spectator Mode) and "Me" (Track your own duck) with the new floating camera button.
+* **Smart Framing:** The camera adjusts vertically based on rank—leaders see the trail of opponents behind them, while those in the back see the pack ahead.
+* **Mobile Optimization:** Full responsive scaling and smooth horizontal tracking ensure the action stays centered on any device.
 
-### ⚔️ Multiplayer Chaos
+### 🔫 The Hunt (PvE)
+
+* **Hunters:** Aggressive red dots appear on the riverbanks to snipe passing ducks.
+* **Laser Penalty:** Getting shot triggers the "Hunted" state (💀). Your duck flips upside down and suffers heavy drag for 2 seconds.
+
+### 🏁 Epic Finishes
+
+* **Catch Net:** A physical net past the finish line catches all racers, creating a satisfying end-of-race pile-up.
+* **Bobbing Physics:** Ducks gently bob in the current while stuck against the net.
+* **End-Game Cam:** The camera smoothly decelerates at the finish line to frame the final results.
+
+### 🔧 Engine Overhaul
+
+* **Refactored Core:** Split the monolith `RaceEngine` into dedicated `LevelGenerator`, `Renderer`, and `Physics` modules for better maintainability.
+* **Improved Rendering:** Fixed Z-indexing so ducks properly float *under* bridges and nets.
+
+---
+
+## ⚔️ Multiplayer Chaos
 
 * **Power-Up System:** Mystery boxes grant temporary abilities:
   * **⚡ Speed:** Instant velocity boost.
@@ -39,12 +56,6 @@ Built with **HTML5 Canvas**, **JavaScript Modules**, and **Firebase**, it suppor
   * **⚓ Anchor:** Heavy drag (the "bad" power-up).
 * **NPC Bots:** Empty slots are automatically filled with bots ("Quackers", "Waddles") so the river is always full.
 * **Spectator Chat:** Live chat overlay to talk trash during the race.
-
-### 🎨 Visuals & Polish
-
-* **Bridge Drop Start:** Ducks spawn on a 3D-styled arched bridge and drop into the water on "GO!".
-* **Dynamic Camera:** Smoothly tracks the race leader.
-* **Live Customization:** See your duck update in real-time as you pick colors.
 
 ---
 
@@ -59,8 +70,8 @@ Built with **HTML5 Canvas**, **JavaScript Modules**, and **Firebase**, it suppor
 
 ## 🚀 Future Roadmap
 
+* [x] **Spectator Tools:** "Follow Cam" to click and spectate specific ducks.
 * [ ] **Sound Effects:** Add splashes, quacks, and collision "boings".
-* [ ] **Spectator Tools:** "Follow Cam" to click and spectate specific ducks.
 * [ ] **Leaderboards:** Track total wins across session.
 * [ ] **Seasons:** Different biomes (Snow, Lava, Space).
 

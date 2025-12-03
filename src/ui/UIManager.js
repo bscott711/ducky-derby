@@ -28,6 +28,13 @@ export class UIManager {
         this.waveEls = document.querySelectorAll(".wave");
         this.cloudLayerEl = document.getElementById("cloud-layer");
 
+        // Floating Camera Button
+        this.camBtn = document.createElement("button");
+        this.camBtn.className = "floating-cam-btn";
+        this.camBtn.textContent = "🎥 Camera: Auto";
+        document.body.appendChild(this.camBtn);
+        this.camBtn.classList.add("hidden");
+
         this.initInternalListeners();
     }
 
@@ -39,8 +46,50 @@ export class UIManager {
             }
         };
 
-        if (this.chatToggleBtn) this.chatToggleBtn.onclick = toggleChat;
+        // FIX: Stop propagation so clicking the button doesn't also click the header
+        if (this.chatToggleBtn) {
+            this.chatToggleBtn.onclick = (e) => {
+                e.stopPropagation();
+                toggleChat();
+            };
+        }
+
         if (this.chatHeader) this.chatHeader.onclick = toggleChat;
+    }
+
+    setupInputListeners(onInput) {
+        window.addEventListener("keydown", (e) => {
+            if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") onInput("left", true);
+            if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") onInput("right", true);
+        });
+        window.addEventListener("keyup", (e) => {
+            if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") onInput("left", false);
+            if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") onInput("right", false);
+        });
+
+        window.addEventListener(
+            "touchstart",
+            (e) => {
+                if (e.target.tagName === "BUTTON" || e.target.tagName === "INPUT") return;
+                const touchX = e.touches[0].clientX;
+                const midPoint = window.innerWidth / 2;
+                if (touchX < midPoint) onInput("left", true);
+                else onInput("right", true);
+            },
+            { passive: false },
+        );
+
+        window.addEventListener("touchend", (e) => {
+            onInput("left", false);
+            onInput("right", false);
+        });
+    }
+
+    setupCameraListener(callback) {
+        this.camBtn.onclick = () => {
+            const nextMode = callback();
+            this.camBtn.textContent = `🎥 Camera: ${nextMode}`;
+        };
     }
 
     runCountdown(onComplete) {
@@ -77,9 +126,12 @@ export class UIManager {
             el.classList.add("hidden");
         }
 
+        this.camBtn.classList.add("hidden");
+
         if (panelName === "game") {
             this.gameUI.style.display = "none";
             this.chatOverlay.classList.remove("hidden");
+            this.camBtn.classList.remove("hidden");
         } else if (panelName === "start") {
             this.gameUI.style.display = "flex";
             this.panels.start.classList.remove("hidden");
@@ -133,7 +185,6 @@ export class UIManager {
         return readyCount;
     }
 
-    // --- UPDATED ROOM LIST ---
     updateRoomList(rooms, onJoin) {
         this.publicRoomListEl.innerHTML = "";
         if (rooms.length === 0) {
@@ -148,13 +199,11 @@ export class UIManager {
                 ? room.players[room.hostId].name
                 : "Unknown";
 
-            // FIX: Check status to customize card
             const isRacing = room.status === "racing";
             const statusText = isRacing ? " (In Progress)" : "";
 
             const card = document.createElement("div");
             card.className = "room-card";
-            // Dim the card if racing
             if (isRacing) card.style.opacity = "0.7";
 
             card.innerHTML = `
@@ -169,7 +218,6 @@ export class UIManager {
             const joinBtn = document.createElement("button");
             joinBtn.className = "join-small-btn";
 
-            // FIX: Disable button for racing rooms
             if (isRacing) {
                 joinBtn.textContent = "RACING";
                 joinBtn.disabled = true;
