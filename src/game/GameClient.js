@@ -23,13 +23,25 @@ export class GameClient {
     }
 
     init() {
-        // Camera Toggle
+        // Camera Toggle (Me -> Leader -> Last -> Me)
         this.ui.setupCameraListener(() => {
-            if (this.engine.followId === this.user?.uid) {
+            const current = this.engine.followId;
+            const myId = this.user?.uid;
+
+            if (current === myId && myId) {
+                // Was "Me" -> Switch to "Leader"
                 this.engine.setFollowId(null);
                 return "Leader";
             }
-            this.engine.setFollowId(this.user?.uid);
+
+            if (current === null) {
+                // Was "Leader" -> Switch to "Last"
+                this.engine.setFollowId("LAST");
+                return "Last";
+            }
+
+            // Was "Last" (or unknown) -> Switch to "Me"
+            this.engine.setFollowId(myId);
             return "Me";
         });
 

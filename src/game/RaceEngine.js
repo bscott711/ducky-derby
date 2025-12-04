@@ -208,12 +208,24 @@ export class RaceEngine {
     updateCamera() {
         let targetDuck = null;
 
-        // 1. Follow User
-        if (this.followId) {
+        // 1. Priority Check: "Last Place" Mode
+        // We MUST check this before the general 'this.followId' check
+        // because "LAST" is a truthy string.
+        if (this.followId === "LAST") {
+            let minY = Number.POSITIVE_INFINITY;
+            for (const d of this.ducks) {
+                if (d.y < minY) {
+                    minY = d.y;
+                    targetDuck = d;
+                }
+            }
+        }
+        // 2. Follow Specific User (Only if NOT "LAST")
+        else if (this.followId) {
             targetDuck = this.ducks.find((d) => d.id === this.followId);
         }
 
-        // 2. Or Follow Leader
+        // 3. Fallback: Follow Leader (Furthest Ahead)
         if (!targetDuck) {
             let maxY = Number.NEGATIVE_INFINITY;
             for (const d of this.ducks) {
@@ -224,6 +236,7 @@ export class RaceEngine {
             }
         }
 
+        // Apply Camera Movement
         if (targetDuck) {
             const targetCamX = targetDuck.x;
             this.cameraX += (targetCamX - this.cameraX) * 0.02;
@@ -231,6 +244,7 @@ export class RaceEngine {
             const viewOffset = 220;
             let targetCamY = targetDuck.y + viewOffset;
 
+            // Clamp camera at finish line so we don't scroll into the void
             const maxCamY = this.finishLineY + NET_OFFSET - 200;
             if (targetCamY > maxCamY) {
                 targetCamY = maxCamY;
