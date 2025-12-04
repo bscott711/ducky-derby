@@ -1,5 +1,6 @@
 export const RACE_DISTANCE = 10000;
 export const NET_OFFSET = 400;
+export const ENVIRONMENT = import.meta.env.VITE_ENVIRONMENT || "main";
 
 // Physics Constants
 export const PHYSICS = {

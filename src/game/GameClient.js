@@ -80,14 +80,7 @@ export class GameClient {
             this.players = players;
             this.ui.updateLobbyPlayers(players, this.user.uid);
 
-            // LATE JOIN LOGIC: If we are racing, add new players dynamically
-            if (this.currentState === "racing") {
-                for (const p of Object.values(players)) {
-                    this.engine.addRacer(p); // RaceEngine handles duplicates
-                }
-            }
-
-            // Sync My Config
+            // Sync My Config (This logic remains)
             const me = this.players[this.user.uid];
             if (me && !this.controlsInitialized) {
                 const debouncedUpdate = debounce((cfg) => {
@@ -121,15 +114,24 @@ export class GameClient {
                 this.lobbyTick(); // Immediate update
             }
         } else if (data.status === "racing") {
-            if (this.currentState !== "racing") {
-                // Stop Timer Loop
-                if (this.lobbyInterval) {
-                    clearInterval(this.lobbyInterval);
-                    this.lobbyInterval = null;
-                }
+            // 1. If we are already racing or spectating, ignore redundant updates
+            if (this.currentState === "racing" || this.currentState === "spectating") return;
 
-                this.startRace(data.seed);
+            // 2. Late Joiner Check: If we load in (unknown state) and the race is ON, we must spectate
+            if (this.currentState === "unknown") {
+                this.currentState = "spectating";
+                this.ui.showPanel("lobby");
+                this.ui.updateLobbyTimer("Race in Progress... (Wait for next round)");
+                this.engine.stop();
+                return;
             }
+
+            // 3. Normal Transition: Lobby -> Racing
+            if (this.lobbyInterval) {
+                clearInterval(this.lobbyInterval);
+                this.lobbyInterval = null;
+            }
+            this.startRace(data.seed);
         }
     }
 

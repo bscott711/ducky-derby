@@ -12,10 +12,11 @@ import {
     updateDoc,
     where,
 } from "firebase/firestore";
+import { ENVIRONMENT } from "../config.js";
 import { db } from "./firebaseConfig.js";
 
-const WORLD_DOC = "world/main";
-const PLAYERS_COLLECTION = "world/main/players";
+const WORLD_DOC = `world/${ENVIRONMENT}`;
+const PLAYERS_COLLECTION = `world/${ENVIRONMENT}/players`;
 
 export class DatabaseService {
     // --- Player Management ---

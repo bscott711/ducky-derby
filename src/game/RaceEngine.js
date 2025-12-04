@@ -74,22 +74,19 @@ export class RaceEngine {
 
         // 1. Add Real Players
         for (const p of players) {
-            this.addRacer(p, true);
+            this.addRacer(p);
         }
 
         // 2. Fill with NPCs
         const needed = MIN_RACERS - this.ducks.length;
         for (let i = 0; i < needed; i++) {
             const nameIdx = Math.floor(this.rng() * NPC_NAMES.length);
-            this.addRacer(
-                {
-                    id: `npc-${i}`,
-                    name: `${NPC_NAMES[nameIdx]}`,
-                    config: { body: this.getSeededColor(), beak: this.getSeededColor() },
-                    isNPC: true,
-                },
-                true,
-            );
+            this.addRacer({
+                id: `npc-${i}`,
+                name: `${NPC_NAMES[nameIdx]}`,
+                config: { body: this.getSeededColor(), beak: this.getSeededColor() },
+                isNPC: true,
+            });
         }
 
         // Set Camera Start
@@ -100,13 +97,13 @@ export class RaceEngine {
         this.render();
     }
 
-    // NEW: Adds a single duck (used for setup AND late joiners)
-    addRacer(playerData, isSetup = false) {
+    // Adds a single duck to the race based on initial race setup
+    addRacer(playerData) {
         // Prevent duplicates
         if (this.ducks.find((d) => d.id === playerData.id)) return;
 
         const bridgeY = -200;
-        // FIX: Calculate the river segment index corresponding to the bridge's Y position.
+        // Calculate the river segment index corresponding to the bridge's Y position.
         const segmentIndex = Math.floor((bridgeY + 500) / 5);
         const segment = this.riverPath[segmentIndex] || this.riverPath[0];
         const bridgeCenterX = segment.centerX;
@@ -114,12 +111,11 @@ export class RaceEngine {
         const bridgeWidth = PHYSICS.RIVER_WIDTH + 140;
         const archHeight = 60;
 
-        // Use seeded RNG for setup, random for late joiners (prevents stacking)
-        const rand = isSetup ? this.rng() : Math.random();
+        const rand = this.rng(); // Now always uses seeded RNG for a deterministic starting lineup
 
         const spread = bridgeWidth * 0.6;
         const jitterX = (rand - 0.5) * spread;
-        const startX = bridgeCenterX + jitterX; // Use the corrected center X
+        const startX = bridgeCenterX + jitterX;
         const startZ = archHeight * (1 - (jitterX / (bridgeWidth / 2)) ** 2) + 20;
 
         this.ducks.push({
