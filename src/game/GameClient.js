@@ -7,22 +7,31 @@ export class GameClient {
         this.ui = uiManager;
         this.engine = new RaceEngine();
 
-        // Application State
         this.user = null;
-        this.room = null;
-        this.isHost = false;
+        this.worldState = null;
         this.players = {};
-        this.raceStatus = "lobby";
 
-        this.chatUnsub = null;
-        this.roomUnsub = null;
+        // Local state machine
+        this.currentState = "unknown"; // 'lobby' | 'racing'
         this.controlsInitialized = false;
+
+        // Timer & Host Logic
+        this.lobbyInterval = null;
+        this.hostStarting = false;
 
         this.init();
     }
 
     init() {
-        this.setupGlobalListeners();
+        // Camera Toggle
+        this.ui.setupCameraListener(() => {
+            if (this.engine.followId === this.user?.uid) {
+                this.engine.setFollowId(null);
+                return "Leader";
+            }
+            this.engine.setFollowId(this.user?.uid);
+            return "Me";
+        });
 
         authService.onAuthStateChanged((user) => {
             if (user) {
@@ -34,231 +43,151 @@ export class GameClient {
         });
     }
 
-    setupGlobalListeners() {
-        // Camera Toggle
-        this.ui.setupCameraListener(() => {
-            if (this.engine.followId === this.user?.uid) {
-                this.engine.setFollowId(null);
-                return "Leader";
-            }
-            this.engine.setFollowId(this.user?.uid);
-            return "Me";
-        });
-
-        // DOM Event Listeners
-        document
-            .getElementById("create-room-btn")
-            .addEventListener("click", () => this.handleCreateRoom());
-        document
-            .getElementById("join-room-btn")
-            .addEventListener("click", () => this.handleJoinPrivate());
-        document
-            .getElementById("start-race-btn")
-            .addEventListener("click", () => this.handleStartRace());
-        document
-            .getElementById("back-to-lobby-btn")
-            .addEventListener("click", () => this.handleBackToLobby());
-        document
-            .getElementById("delete-room-btn")
-            .addEventListener("click", () => this.handleDeleteRoom());
-    }
-
     onAuthSuccess() {
-        dbService.subscribeToPublicRooms((rooms) => {
-            if (!this.room) {
-                this.ui.updateRoomList(rooms, (id) => this.handleJoinRoom(id));
-            }
-        });
+        // Bind Start Button
+        const joinBtn = document.getElementById("join-world-btn");
+        const nameInput = document.getElementById("player-name-input");
+
+        // Pre-fill name
+        const storedName = localStorage.getItem("ducky_name");
+        if (storedName) nameInput.value = storedName;
+
+        joinBtn.onclick = () => {
+            const name = nameInput.value || "Guest";
+            localStorage.setItem("ducky_name", name);
+            this.joinWorld(name);
+        };
     }
 
-    // --- Room Actions ---
-
-    async handleCreateRoom() {
-        const name = document.getElementById("player-name-input").value || "Host";
-        const isPublic = document.getElementById("is-public-check").checked;
+    async joinWorld(name) {
         const defaultDuck = getRandomDuckConfig();
 
-        try {
-            const roomId = await dbService.createRoom(this.user.uid, name, isPublic, defaultDuck);
-            this.enterLobby(roomId, true);
-        } catch (e) {
-            console.error("Create Room Error:", e);
-        }
-    }
+        // 1. Register in DB
+        await dbService.joinWorld(this.user.uid, name, defaultDuck);
 
-    handleJoinPrivate() {
-        const code = document.getElementById("room-code-input").value.toUpperCase();
-        if (code) this.handleJoinRoom(code);
-    }
-
-    async handleJoinRoom(roomId) {
-        const name = document.getElementById("player-name-input").value || "Guest";
-        const defaultDuck = getRandomDuckConfig();
-
-        try {
-            const hostId = await dbService.joinRoom(roomId, this.user.uid, name, defaultDuck);
-            const isMeHost = hostId === this.user.uid;
-            this.enterLobby(roomId, isMeHost);
-        } catch (e) {
-            alert(e.message);
-        }
-    }
-
-    async handleDeleteRoom() {
-        if (confirm("Are you sure you want to close this room? Everyone will be kicked.")) {
-            try {
-                await dbService.deleteRoom(this.room);
-            } catch (e) {
-                console.error("Delete Room Error:", e);
-            }
-        }
-    }
-
-    // --- Lobby Logic ---
-
-    enterLobby(roomId, isHost) {
-        this.room = roomId;
-        this.isHost = isHost;
-        this.raceStatus = "lobby";
-
+        // 2. Init UI
         this.ui.showPanel("lobby");
-        document.getElementById("lobby-code-display").textContent = roomId;
-        document.getElementById("room-code-header").textContent = `ROOM: ${roomId}`;
 
-        const hostMsg = document.getElementById("host-msg");
-        const startBtn = document.getElementById("start-race-btn");
-        const deleteBtn = document.getElementById("delete-room-btn");
-        const waitMsg = document.getElementById("waiting-msg");
-
-        if (isHost) {
-            hostMsg.classList.remove("hidden");
-            startBtn.classList.remove("hidden");
-            deleteBtn.classList.remove("hidden");
-            waitMsg.classList.add("hidden");
-            startBtn.disabled = false;
-        } else {
-            hostMsg.classList.add("hidden");
-            startBtn.classList.add("hidden");
-            deleteBtn.classList.add("hidden");
-            waitMsg.classList.remove("hidden");
-        }
-
-        const debouncedUpdate = debounce((newConfig) => {
-            dbService.updatePlayerConfig(roomId, this.user.uid, newConfig, this.players);
-        }, 300);
-
-        if (this.chatUnsub) this.chatUnsub();
-        this.chatUnsub = dbService.subscribeToChat(roomId, (msgs) => {
-            this.ui.chat.renderMessages(msgs);
-        });
+        // 3. Subscribe to Chat
+        dbService.subscribeToChat((msgs) => this.ui.chat.renderMessages(msgs));
         this.ui.chat.setupSendListener((text) => {
             const myName = this.players[this.user.uid]?.name || "Anon";
-            dbService.sendChatMessage(roomId, this.user.uid, myName, text);
+            dbService.sendChatMessage(this.user.uid, myName, text);
         });
 
-        if (this.roomUnsub) this.roomUnsub();
-        this.roomUnsub = dbService.subscribeToRoom(roomId, (data) => this.onRoomDataUpdate(data));
+        // 4. Subscribe to Players
+        dbService.subscribeToPlayers((players) => {
+            this.players = players;
+            this.ui.updateLobbyPlayers(players, this.user.uid);
+
+            // LATE JOIN LOGIC: If we are racing, add new players dynamically
+            if (this.currentState === "racing") {
+                for (const p of Object.values(players)) {
+                    this.engine.addRacer(p); // RaceEngine handles duplicates
+                }
+            }
+
+            // Sync My Config
+            const me = this.players[this.user.uid];
+            if (me && !this.controlsInitialized) {
+                const debouncedUpdate = debounce((cfg) => {
+                    dbService.updatePlayerConfig(this.user.uid, cfg);
+                }, 300);
+                this.ui.initCustomization(me.config, debouncedUpdate);
+                this.controlsInitialized = true;
+            }
+        });
+
+        // 5. Subscribe to World State (The Heartbeat)
+        dbService.subscribeToWorld((data) => this.handleWorldUpdate(data));
     }
 
-    onRoomDataUpdate(data) {
-        if (!data) {
-            alert("Room closed.");
-            this.resetToLobby();
-            return;
-        }
+    handleWorldUpdate(data) {
+        this.worldState = data;
 
-        this.players = data.players || {};
-        this.ui.updateLobbyPlayers(this.players, this.user.uid);
+        // --- Client State Transitions ---
+        if (data.status === "lobby") {
+            if (this.currentState !== "lobby") {
+                this.currentState = "lobby";
+                this.ui.showPanel("lobby");
+                this.engine.stop();
 
-        const me = this.players[this.user.uid];
-        if (me?.config && !this.controlsInitialized) {
-            const debouncedUpdate = debounce((newConfig) => {
-                dbService.updatePlayerConfig(this.room, this.user.uid, newConfig, this.players);
-            }, 300);
+                // Reset Host Logic
+                this.hostStarting = false;
 
-            this.ui.initCustomization(me.config, (cfg) => debouncedUpdate(cfg));
-            this.controlsInitialized = true;
-        }
+                // Start Local Timer Loop
+                if (this.lobbyInterval) clearInterval(this.lobbyInterval);
+                this.lobbyInterval = setInterval(() => this.lobbyTick(), 1000);
+                this.lobbyTick(); // Immediate update
+            }
+        } else if (data.status === "racing") {
+            if (this.currentState !== "racing") {
+                // Stop Timer Loop
+                if (this.lobbyInterval) {
+                    clearInterval(this.lobbyInterval);
+                    this.lobbyInterval = null;
+                }
 
-        if (data.status === "racing" && this.raceStatus === "lobby") {
-            console.log("Rx Race Signal. Seed:", data.seed);
-            this.beginRaceSequence(data.seed || 123456);
-        } else if (data.status === "lobby" && this.raceStatus !== "lobby") {
-            this.returnToLobbyState();
-        }
-    }
-
-    // --- Race Logic ---
-
-    async handleStartRace() {
-        if (this.isHost) {
-            const seed = Math.floor(Math.random() * 1000000);
-            await dbService.startRace(this.room, seed);
+                this.startRace(data.seed);
+            }
         }
     }
 
-    beginRaceSequence(seed) {
-        console.log("Starting Engine with seed:", seed);
-        this.raceStatus = "racing";
+    lobbyTick() {
+        if (!this.worldState || this.currentState !== "lobby") return;
+
+        const now = Date.now();
+        const remaining = Math.max(0, Math.ceil((this.worldState.startTime - now) / 1000));
+
+        // Update UI
+        this.ui.updateLobbyTimer(`Next Race: ${remaining}s`);
+
+        // --- Host Logic ---
+        // Distributed Host: The alphabetically first player is the "Soft Host"
+        // We run this check every second to trigger the race when time runs out
+        const playerIds = Object.keys(this.players).sort();
+        const isHost = playerIds.length > 0 && playerIds[0] === this.user.uid;
+
+        if (isHost && now >= this.worldState.startTime) {
+            if (!this.hostStarting) {
+                this.hostStarting = true;
+                console.log("HOST: Timer complete, starting race...");
+                dbService.setRaceStatus("racing");
+            }
+        }
+    }
+
+    startRace(seed) {
+        this.currentState = "racing";
         this.ui.showPanel("game");
 
-        const realPlayers = Object.entries(this.players).map(([id, data]) => ({
-            id,
-            ...data,
-        }));
+        // Start Engine with current players
+        this.engine.setup(seed, Object.values(this.players));
 
-        this.engine.setup(seed, realPlayers);
-        this.engine.setFollowId(null);
-        this.ui.camBtn.textContent = "🎥 Camera: Leader";
+        // Auto-Cam
+        this.engine.setFollowId(this.user.uid);
+        this.ui.camBtn.textContent = "🎥 Camera: Me";
 
         this.ui.runCountdown(() => {
-            this.engine.run((finishOrder) => this.onRaceFinish(finishOrder));
+            this.engine.run((finishOrder) => this.onLocalRaceFinish(finishOrder));
         });
     }
 
-    onRaceFinish(finishOrder) {
-        this.raceStatus = "finished";
-        console.log("Race Finished", finishOrder);
+    onLocalRaceFinish(finishOrder) {
+        this.ui.showPanel("results");
+        const myName = this.players[this.user.uid]?.name;
+        const myRank = finishOrder.findIndex((d) => d.name === myName);
+        this.ui.showResults(finishOrder, this.players, myRank, this.user.uid);
 
-        setTimeout(() => {
-            this.ui.showPanel("results");
-            const myName = this.players[this.user.uid]?.name;
-            const myRank = finishOrder.findIndex((d) => d.name === myName);
-            this.ui.showResults(finishOrder, this.players, myRank, this.user.uid);
+        // If I am Host, queue the reset
+        const playerIds = Object.keys(this.players).sort();
+        const isHost = playerIds.length > 0 && playerIds[0] === this.user.uid;
 
-            const backBtn = document.getElementById("back-to-lobby-btn");
-            if (this.isHost) {
-                backBtn.textContent = "Back to Lobby";
-                backBtn.disabled = false;
-            } else {
-                backBtn.textContent = "Waiting for Host...";
-                backBtn.disabled = true;
-            }
-        }, 1000);
-    }
-
-    async handleBackToLobby() {
-        if (this.isHost) {
-            await dbService.resetLobby(this.room);
+        if (isHost) {
+            // Wait 8 seconds for everyone to see results, then back to lobby
+            setTimeout(() => {
+                dbService.resetWorldState();
+            }, 8000);
         }
-    }
-
-    returnToLobbyState() {
-        this.raceStatus = "lobby";
-        this.ui.showPanel("lobby");
-        this.engine.stop();
-    }
-
-    resetToLobby() {
-        this.raceStatus = "lobby";
-        this.room = null;
-        this.isHost = false;
-        this.controlsInitialized = false;
-
-        if (this.chatUnsub) this.chatUnsub();
-        if (this.roomUnsub) this.roomUnsub();
-
-        this.engine.stop();
-        this.ui.showPanel("start");
     }
 }
