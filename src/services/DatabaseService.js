@@ -16,38 +16,12 @@ import {
 import { ENVIRONMENT } from "../config.js";
 import { db } from "./firebaseConfig.js";
 
+// Dynamic Paths based on Environment (dev/main)
 const WORLD_DOC = `world/${ENVIRONMENT}`;
 const PLAYERS_COLLECTION = `world/${ENVIRONMENT}/players`;
 const LEADERBOARD_COLLECTION = `world/${ENVIRONMENT}/leaderboard`;
 
 export class DatabaseService {
-    // --- Leaderboard ---
-
-    async recordWin(userId, userName) {
-        const docRef = doc(db, LEADERBOARD_COLLECTION, userId);
-        // Atomic increment ensures accuracy even if multiple people win different races simultaneously
-        await setDoc(
-            docRef,
-            {
-                name: userName,
-                wins: increment(1),
-                lastUpdate: serverTimestamp(),
-            },
-            { merge: true },
-        );
-    }
-
-    subscribeToLeaderboard(callback) {
-        const q = query(collection(db, LEADERBOARD_COLLECTION), orderBy("wins", "desc"), limit(5));
-        return onSnapshot(q, (snapshot) => {
-            const data = [];
-            for (const doc of snapshot.docs) {
-                data.push(doc.data());
-            }
-            callback(data);
-        });
-    }
-
     // --- Player Management ---
 
     async joinWorld(userId, userName, duckConfig) {
@@ -111,7 +85,6 @@ export class DatabaseService {
         });
 
         // Cleanup: Remove players who haven't updated in 1 hour
-        // (Real app would use a tighter heartbeat, but this keeps the DB clean enough)
         this.cleanupOldPlayers();
     }
 
@@ -129,9 +102,36 @@ export class DatabaseService {
         }
     }
 
+    // --- Leaderboard ---
+
+    async recordWin(userId, userName) {
+        const docRef = doc(db, LEADERBOARD_COLLECTION, userId);
+        await setDoc(
+            docRef,
+            {
+                name: userName,
+                wins: increment(1),
+                lastUpdate: serverTimestamp(),
+            },
+            { merge: true },
+        );
+    }
+
+    subscribeToLeaderboard(callback) {
+        const q = query(collection(db, LEADERBOARD_COLLECTION), orderBy("wins", "desc"), limit(5));
+        return onSnapshot(q, (snapshot) => {
+            const data = [];
+            for (const doc of snapshot.docs) {
+                data.push(doc.data());
+            }
+            callback(data);
+        });
+    }
+
     // --- Chat ---
+
     async sendChatMessage(userId, userName, text) {
-        const chatRef = collection(db, "world/main/messages");
+        const chatRef = collection(db, `world/${ENVIRONMENT}/messages`);
         await setDoc(doc(chatRef), {
             userId,
             userName,
@@ -141,11 +141,22 @@ export class DatabaseService {
     }
 
     subscribeToChat(callback) {
-        const chatRef = collection(db, "world/main/messages");
+        const chatRef = collection(db, `world/${ENVIRONMENT}/messages`);
         const q = query(chatRef, orderBy("timestamp", "desc"), limit(50));
         return onSnapshot(q, (snapshot) => {
             const messages = snapshot.docs.map((doc) => doc.data()).reverse();
             callback(messages);
         });
+    }
+
+    async ping(userId) {
+        const playerRef = doc(db, PLAYERS_COLLECTION, userId);
+        try {
+            await updateDoc(playerRef, {
+                lastSeen: serverTimestamp(),
+            });
+        } catch (e) {
+            // Ignore errors (e.g., if player was already cleaned up)
+        }
     }
 }

@@ -19,6 +19,9 @@ export class GameClient {
         this.lobbyInterval = null;
         this.hostStarting = false;
 
+        // Keep-Alive
+        this.heartbeat = null; // [!code ++]
+
         this.init();
     }
 
@@ -106,8 +109,22 @@ export class GameClient {
             }
         });
 
-        // 5. Subscribe to World State (The Heartbeat)
+        // 5. Subscribe to World State
         dbService.subscribeToWorld((data) => this.handleWorldUpdate(data));
+
+        // 6. Start Heartbeat [!code ++]
+        this.startHeartbeat();
+    }
+
+    // [!code ++]
+    startHeartbeat() {
+        if (this.heartbeat) clearInterval(this.heartbeat);
+        // Ping every 60 seconds to keep the session alive
+        this.heartbeat = setInterval(() => {
+            if (this.user?.uid) {
+                dbService.ping(this.user.uid);
+            }
+        }, 60000);
     }
 
     handleWorldUpdate(data) {
