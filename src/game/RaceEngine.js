@@ -69,72 +69,81 @@ export class RaceEngine {
         this.powerupBoxes = levelData.powerupBoxes;
         this.hunters = levelData.hunters;
 
-        this.initDucks(players);
+        // Reset Ducks
+        this.ducks = [];
+
+        // 1. Add Real Players
+        for (const p of players) {
+            this.addRacer(p, true);
+        }
+
+        // 2. Fill with NPCs
+        const needed = MIN_RACERS - this.ducks.length;
+        for (let i = 0; i < needed; i++) {
+            const nameIdx = Math.floor(this.rng() * NPC_NAMES.length);
+            this.addRacer(
+                {
+                    id: `npc-${i}`,
+                    name: `${NPC_NAMES[nameIdx]}`,
+                    config: { body: this.getSeededColor(), beak: this.getSeededColor() },
+                    isNPC: true,
+                },
+                true,
+            );
+        }
+
+        // Set Camera Start
+        const startSeg = this.riverPath[0];
+        this.cameraX = startSeg.centerX;
+        this.cameraY = -200;
+
         this.render();
     }
 
-    initDucks(players) {
-        const racerList = Object.values(players).sort((a, b) =>
-            (a.id || "").localeCompare(b.id || ""),
-        );
+    // NEW: Adds a single duck (used for setup AND late joiners)
+    addRacer(playerData, isSetup = false) {
+        // Prevent duplicates
+        if (this.ducks.find(d => d.id === playerData.id)) return;
 
-        if (racerList.length < MIN_RACERS) {
-            const needed = MIN_RACERS - racerList.length;
-            for (let i = 0; i < needed; i++) {
-                const nameIdx = Math.floor(this.rng() * NPC_NAMES.length);
-                const config = {
-                    body: this.getSeededColor(),
-                    beak: this.getSeededColor(),
-                };
-                racerList.push({
-                    name: `${NPC_NAMES[nameIdx]} #${i + 1}`,
-                    config: config,
-                    isNPC: true,
-                    id: `npc-${i}`,
-                });
-            }
-        }
-
-        this.ducks = [];
         const bridgeY = -200;
+        // FIX: Calculate the river segment index corresponding to the bridge's Y position.
         const segmentIndex = Math.floor((bridgeY + 500) / 5);
         const segment = this.riverPath[segmentIndex] || this.riverPath[0];
+        const bridgeCenterX = segment.centerX; 
+        
         const bridgeWidth = PHYSICS.RIVER_WIDTH + 140;
         const archHeight = 60;
+        
+        // Use seeded RNG for setup, random for late joiners (prevents stacking)
+        const rand = isSetup ? this.rng() : Math.random();
+        
+        const spread = bridgeWidth * 0.6;
+        const jitterX = (rand - 0.5) * spread;
+        const startX = bridgeCenterX + jitterX; // Use the corrected center X
+        const startZ = archHeight * (1 - (jitterX / (bridgeWidth / 2)) ** 2) + 20;
 
-        this.cameraX = segment.centerX;
-        this.cameraY = bridgeY;
-
-        for (const p of racerList) {
-            const spread = bridgeWidth * 0.6;
-            const jitterX = (this.rng() - 0.5) * spread;
-            // No user controls means no bias needed for spawn, just random distribution
-            const startZ =
-                archHeight * (1 - (jitterX / (bridgeWidth / 2)) ** 2) + 20 + this.rng() * 10;
-            const startX = segment.centerX;
-
-            this.ducks.push({
-                id: p.id,
-                name: p.name,
-                color: p.config.body,
-                beak: p.config.beak,
-                x: startX + jitterX,
-                y: bridgeY,
-                z: startZ,
-                vz: 0,
-                vx: 0,
-                vy: 0,
-                radius: PHYSICS.DUCK_RADIUS,
-                mass: PHYSICS.DUCK_MASS,
-                finished: false,
-                trapTimer: 0,
-                cooldownTimer: 0,
-                effect: null,
-                effectTimer: 0,
-                originalRadius: PHYSICS.DUCK_RADIUS,
-                facingRight: this.rng() > 0.5,
-            });
-        }
+        this.ducks.push({
+            id: playerData.id,
+            name: playerData.name,
+            color: playerData.config?.body || "#fff",
+            beak: playerData.config?.beak || "#ffa500",
+            x: startX,
+            y: bridgeY,
+            z: startZ,
+            vz: 0,
+            vx: 0,
+            vy: 0,
+            radius: PHYSICS.DUCK_RADIUS,
+            mass: PHYSICS.DUCK_MASS,
+            finished: false,
+            finishTime: 0,
+            trapTimer: 0,
+            cooldownTimer: 0,
+            effect: null,
+            effectTimer: 0,
+            originalRadius: PHYSICS.DUCK_RADIUS,
+            facingRight: rand > 0.5,
+        });
     }
 
     getSeededColor() {
@@ -174,11 +183,11 @@ export class RaceEngine {
     updateGameLogic() {
         const timeScale = 1.0;
 
-        // 1. Update Sub-Systems
+        // Update Sub-Systems
         this.hunterSystem.update(this.hunters, this.ducks, timeScale);
         this.powerupSystem.update(this.ducks, this.powerupBoxes, timeScale);
 
-        // 2. Update Physics
+        // Update Physics
         this.physicsSystem.update(timeScale, {
             ducks: this.ducks,
             riverPath: this.riverPath,
@@ -188,9 +197,10 @@ export class RaceEngine {
             finishLineY: this.finishLineY,
         });
 
-        // 3. Race Completion Check
+        // Race Completion Check
+        // Only end if we have ducks and ALL are finished
         const finishedCount = this.ducks.filter((d) => d.finished).length;
-        if (finishedCount === this.ducks.length) {
+        if (this.ducks.length > 0 && finishedCount === this.ducks.length) {
             if (this.postRaceTimer === 0) this.postRaceTimer = 300;
             this.postRaceTimer--;
             if (this.postRaceTimer <= 0) {
@@ -201,10 +211,13 @@ export class RaceEngine {
 
     updateCamera() {
         let targetDuck = null;
+
+        // 1. Follow User
         if (this.followId) {
             targetDuck = this.ducks.find((d) => d.id === this.followId);
         }
 
+        // 2. Or Follow Leader
         if (!targetDuck) {
             let maxY = Number.NEGATIVE_INFINITY;
             for (const d of this.ducks) {
@@ -254,7 +267,7 @@ export class RaceEngine {
         this.raceFinished = true;
         this.ducks.sort((a, b) => a.finishTime - b.finishTime);
         const finishOrder = this.ducks.map((d) => ({
-            originalIndex: 0,
+            id: d.id,
             config: { body: d.color, beak: d.beak },
             name: d.name,
         }));

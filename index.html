@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ducky Derby v0.4.0</title>
+    <title>Ducky Derby - Global</title>
 </head>
 <body>
     <div class="sky">
@@ -19,7 +19,7 @@
 
     <div id="chat-overlay" class="hidden">
         <div class="chat-header">
-            <span>💬 Spectator Chat</span>
+            <span>💬 Global Chat</span>
             <button id="chat-toggle-btn">−</button>
         </div>
         <div id="chat-content-wrapper">
@@ -34,44 +34,24 @@
     <div id="game-ui">
         <div class="panel" id="start-panel">
             <h1>🦆 Duck Derby 🦆</h1>
+            <p>Global Multiplayer River</p>
             
-            <div style="margin-bottom: 20px;">
+            <div style="margin-bottom: 20px; margin-top: 20px;">
                 <label class="input-label">Your Name:</label>
                 <div class="input-group">
                     <input type="text" id="player-name-input" placeholder="e.g. Maverick" maxlength="12">
                 </div>
             </div>
 
-            <div class="section-divider">
-                <h3>Start New Race</h3>
-                <div class="checkbox-group">
-                    <input type="checkbox" id="is-public-check" checked>
-                    <label for="is-public-check">List Publicly</label>
-                </div>
-                <button class="action-btn" id="create-room-btn">Create Race</button>
-            </div>
-
-            <div class="lobby-list-container">
-                <h3>Available Public Races</h3>
-                <div id="public-room-list">
-                    <div class="loading-text">Loading rooms...</div>
-                </div>
-            </div>
-
-            <div class="section-divider-top">
-                <p class="small-text">Have a private code?</p>
-                <div class="input-group">
-                    <input type="text" id="room-code-input" placeholder="Code" style="text-transform: uppercase; width: 40%;">
-                    <button class="join-small-btn" id="join-room-btn">Join Private</button>
-                </div>
-            </div>
+            <button class="action-btn" id="join-world-btn">ENTER RIVER</button>
         </div>
 
         <div class="panel hidden" id="lobby-panel">
-            <h2 id="room-code-header">ROOM: ????</h2>
-            <div class="room-code-display" id="lobby-code-display">????</div>
+            <h2 id="room-code-header">GLOBAL RIVER</h2>
+            <div class="room-code-display" id="lobby-timer">Next Race: --s</div>
             
-            <h3>Customize Your Duck</h3>
+            <h3 id="player-count">0 Racers</h3>
+
             <div class="customization-container">
                 <div id="duck-preview" class="duck-preview-box"></div>
                 <div class="duck-controls">
@@ -86,21 +66,15 @@
                 </div>
             </div>
 
-            <h3>Racers Ready:</h3>
             <div class="player-list" id="lobby-player-list"></div>
-
-            <p id="host-msg" class="info-msg hidden">You are the host. Click Start when ready.</p>
-            <p id="waiting-msg" class="info-msg">Waiting for host to start...</p>
-            
-            <button class="action-btn hidden" id="start-race-btn" disabled>START RACE</button>
-            <button class="action-btn hidden" id="delete-room-btn" style="background-color: #e74c3c; margin-top: 10px;">CLOSE ROOM</button>
+            <p class="info-msg">Waiting for next race to start...</p>
         </div>
 
         <div class="panel hidden" id="results-panel">
             <h1 id="result-title">Race Finished!</h1>
             <p id="result-message"></p>
             <div class="podium-container" id="podium-display"></div>
-            <button class="action-btn" id="back-to-lobby-btn">Back to Lobby</button>
+            <p style="margin-top: 20px; color: #666;">Next race starting soon...</p>
         </div>
     </div>
 

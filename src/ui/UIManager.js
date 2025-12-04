@@ -11,7 +11,11 @@ export class UIManager {
 
         this.gameUI = document.getElementById("game-ui");
         this.playerListEl = document.getElementById("lobby-player-list");
-        this.publicRoomListEl = document.getElementById("public-room-list");
+
+        // New Global Lobby Elements
+        this.lobbyTimerEl = document.getElementById("lobby-timer");
+        this.playerCountEl = document.getElementById("player-count");
+
         this.podiumDisplay = document.getElementById("podium-display");
         this.countdownOverlay = document.getElementById("countdown-overlay");
 
@@ -72,61 +76,32 @@ export class UIManager {
 
     updateLobbyPlayers(players, currentUserId) {
         this.playerListEl.innerHTML = "";
-        let readyCount = 0;
 
-        for (const [uid, p] of Object.entries(players)) {
+        // Sort: Current User First, then Alphabetical
+        const sorted = Object.values(players).sort((a, b) => {
+            if (a.id === currentUserId) return -1;
+            if (b.id === currentUserId) return 1;
+            return (a.name || "").localeCompare(b.name || "");
+        });
+
+        // Update Global Count
+        if (this.playerCountEl) {
+            this.playerCountEl.textContent = `${sorted.length} Racers Ready`;
+        }
+
+        for (const p of sorted) {
             const div = document.createElement("div");
-            div.className = `player-item${uid === currentUserId ? " me" : ""}`;
+            div.className = `player-item${p.id === currentUserId ? " me" : ""}`;
             const color = p.config?.body || "#ccc";
             const colorDot = `<span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:${color}; margin-right:5px; border:1px solid #999;"></span>`;
             div.innerHTML = `<div>${colorDot} ${p.name}</div>`;
             this.playerListEl.appendChild(div);
-            readyCount++;
         }
-        return readyCount;
     }
 
-    updateRoomList(rooms, onJoin) {
-        this.publicRoomListEl.innerHTML = "";
-        if (rooms.length === 0) {
-            this.publicRoomListEl.innerHTML =
-                '<div style="text-align:center; color:#999; padding: 20px;">No public races starting soon...</div>';
-            return;
-        }
-
-        for (const room of rooms) {
-            const playerCount = room.players ? Object.keys(room.players).length : 0;
-            const hostName = room.players?.[room.hostId]?.name || "Unknown";
-            const isRacing = room.status === "racing";
-
-            const card = document.createElement("div");
-            card.className = "room-card";
-            if (isRacing) card.style.opacity = "0.7";
-
-            card.innerHTML = `
-                <div class="room-info">
-                    <span style="font-weight:bold; color:#333;">Host: ${hostName}${isRacing ? " (In Progress)" : ""}</span>
-                    <div style="font-size:0.85em; color:#666;">
-                        <span class="room-code-small">Code: ${room.id}</span> • ${playerCount} Players
-                    </div>
-                </div>
-            `;
-
-            const joinBtn = document.createElement("button");
-            joinBtn.className = "join-small-btn";
-
-            if (isRacing) {
-                joinBtn.textContent = "RACING";
-                joinBtn.disabled = true;
-                joinBtn.style.backgroundColor = "#ccc";
-                joinBtn.style.cursor = "default";
-            } else {
-                joinBtn.textContent = "JOIN";
-                joinBtn.onclick = () => onJoin(room.id);
-            }
-
-            card.appendChild(joinBtn);
-            this.publicRoomListEl.appendChild(card);
+    updateLobbyTimer(text) {
+        if (this.lobbyTimerEl) {
+            this.lobbyTimerEl.textContent = text;
         }
     }
 
@@ -166,7 +141,7 @@ export class UIManager {
         const msgEl = document.getElementById("result-message");
 
         if (myRank === 0) {
-            titleEl.textContent = "You Won! 🎉";
+            titleEl.textContent = "You Won! 👑";
             titleEl.style.color = "#2ecc71";
             msgEl.textContent = "Your duck is the champion!";
         } else {
