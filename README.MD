@@ -1,43 +1,47 @@
 # 🦆 Ducky Derby
 
-**Ducky Derby** is a chaotic, real-time multiplayer racing game powered by a custom 2D physics engine. Players create lobbies, design their own custom ducks, and race down a procedurally generated river filled with rapids, whirlpools, and jagged rocks.
+**Ducky Derby** is a chaotic, real-time multiplayer racing game powered by a custom 2D physics engine. Players join a persistent global world, design their own custom ducks, and race down a procedurally generated river filled with rapids, whirlpools, and jagged rocks.
 
-Built with **HTML5 Canvas**, **JavaScript Modules**, and **Firebase**, it supports infinite concurrent ducks, elastic collisions, and synchronized physics across all devices.
+Built with **HTML5 Canvas**, **JavaScript Modules**, and **Firebase**, it supports massive multiplayer races, elastic collisions, and synchronized physics across all devices.
 
 ---
 
 ## 🎮 How to Play
 
-1. **Join the Lobby:** Open the game and enter your name.
-    * **Host:** Create a new public or private room.
-    * **Join:** Browse the public list or enter a room code.
-2. **Customize:** Use the color picker to design your duck's Body and Beak colors.
-3. **Wait for Drop:** Once the host starts the race, a countdown begins on the bridge.
+1. **Enter the River:** Open the game and enter your name to join the global lobby.
+2. **Customize:** Use the color picker to design your duck's Body and Beak colors while waiting for the next round.
+3. **The Cycle:** Races run on a continuous loop.
+    * **Lobby:** 15-second intermission to chat, customize, and check the leaderboard.
+    * **Race:** If you join mid-race, you will enter **Spectator Mode** until the next round begins.
 4. **Race:** Watch the physics take over!
     * **Avoid:** Rocks (bounce), Whirlpools (trap), and Hunters (lasers).
     * **Grab:** Mystery Boxes (?) for random power-ups.
-5. **Win:** The first duck to cross the finish line (and hit the net) takes the crown!
+5. **Win:** The first duck to cross the finish line takes the crown and climbs the Global Leaderboard!
 
 ---
 
-## ✨ New Features (v0.4.0)
+## ✨ New Features (v0.5.0)
 
-### 🏗️ Architectural Overhaul
+### 🌍 Global Persistent World
 
-* **System-Based Engine:** The core `RaceEngine` has been decoupled into specialized systems (`PhysicsSystem`, `HunterSystem`, `PowerupSystem`) for robust simulation logic.
-* **Modular Rendering:** The monolithic renderer has been split into dedicated painters (`DuckRenderer`, `EntityRenderer`, `EnvironmentRenderer`) for cleaner draw calls and z-indexing.
-* **Procedural Pipelines:** Level generation is now handled by a suite of micro-generators (`RiverGenerator`, `FeatureGenerator`, `ObstacleGenerator`), paving the way for future biome expansions.
+* **Single Instance Architecture:** Moved away from isolated rooms to a single "Global River." All players join the same world, creating a massive, chaotic racing experience.
+* **Distributed Soft-Host:** The serverless architecture now auto-assigns a "Soft Host" (the longest-active player) to manage the race timer and state transitions, ensuring the game runs endlessly even if players leave.
+* **Heartbeat System:** Implemented a keep-alive system to track active players and clean up "zombie" data automatically.
 
-### 🔌 Service Layer Extraction
+### 🏆 Competition & Spectating
 
-* **Decoupled Backend:** Firebase logic has been moved out of the UI and Game loop into a dedicated Service Layer (`AuthService`, `DatabaseService`), ensuring better separation of concerns and easier testing.
-* **Input Controller:** Input handling is now normalized in a dedicated controller, separating player intent from UI event listeners.
+* **Global Leaderboards:** Persistent tracking of all-time wins stored in Firestore. The top champions are displayed proudly in the lobby.
+* **Smart Spectator Mode:** Late joiners no longer glitch into the race with "super-speed" physics. They are automatically placed in a spectator state to watch the current race finish.
+* **Advanced Camera Control:** Added a 3-way toggle:
+    1. **Me:** Follow your duck.
+    2. **Leader:** Follow the duck in 1st place.
+    3. **Last Place:** Watch the struggle bus at the back of the pack.
 
-### 💧 Physics & Polish
+### 🛠️ Stability & DevOps
 
-* **Net Drifting:** Ducks no longer "freeze" at the finish line; they now physically drift into the catch net and pile up realistically.
-* **Orientation Hysteresis:** Ducks maintain their facing direction during slow movements and spawn with random orientations for a more natural look.
-* **Timestep Fixes:** Corrected frame-rate dependency issues to ensure penalty timers (like being hunted) are consistent across all devices.
+* **Environment Switching:** Added distinct development (`dev`) and production (`main`) database paths to ensure testing doesn't corrupt the live leaderboard.
+* **Jitter Fix:** Synchronized the camera update loop with the physics timestep to eliminate visual vibration during high-speed movement.
+* **Chat Upgrades:** Increased character limits for names and chat messages.
 
 ---
 
@@ -50,7 +54,7 @@ Built with **HTML5 Canvas**, **JavaScript Modules**, and **Firebase**, it suppor
   * **🏀 Bouncy:** Super-elastic collisions.
   * **⚓ Anchor:** Heavy drag (the "bad" power-up).
 * **NPC Bots:** Empty slots are automatically filled with bots ("Quackers", "Waddles") so the river is always full.
-* **Spectator Chat:** Live chat overlay to talk trash during the race.
+* **Spectator Chat:** Live global chat overlay to talk trash during the race.
 
 ---
 
@@ -65,10 +69,10 @@ Built with **HTML5 Canvas**, **JavaScript Modules**, and **Firebase**, it suppor
 
 ## 🚀 Future Roadmap
 
-* [x] **Spectator Tools:** "Follow Cam" to click and spectate specific ducks.
+* [x] **Spectator Tools:** "Follow Cam" and "Last Place Cam".
 * [x] **Refactor:** Complete modularization of Engine, Renderer, and Services.
+* [x] **Leaderboards:** Track total wins across sessions.
 * [ ] **Sound Effects:** Add splashes, quacks, and collision "boings".
-* [ ] **Leaderboards:** Track total wins across session.
 * [ ] **Seasons:** Different biomes (Snow, Lava, Space).
 
 ---

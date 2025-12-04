@@ -19,17 +19,32 @@ export class GameClient {
         this.lobbyInterval = null;
         this.hostStarting = false;
 
+        // Keep-Alive
+        this.heartbeat = null; // [!code ++]
+
         this.init();
     }
 
     init() {
-        // Camera Toggle
+        // Camera Toggle (Me -> Leader -> Last -> Me)
         this.ui.setupCameraListener(() => {
-            if (this.engine.followId === this.user?.uid) {
+            const current = this.engine.followId;
+            const myId = this.user?.uid;
+
+            if (current === myId && myId) {
+                // Was "Me" -> Switch to "Leader"
                 this.engine.setFollowId(null);
                 return "Leader";
             }
-            this.engine.setFollowId(this.user?.uid);
+
+            if (current === null) {
+                // Was "Leader" -> Switch to "Last"
+                this.engine.setFollowId("LAST");
+                return "Last";
+            }
+
+            // Was "Last" (or unknown) -> Switch to "Me"
+            this.engine.setFollowId(myId);
             return "Me";
         });
 
@@ -67,6 +82,9 @@ export class GameClient {
 
         // 2. Init UI
         this.ui.showPanel("lobby");
+        dbService.subscribeToLeaderboard((data) => {
+            this.ui.updateLeaderboard(data);
+        });
 
         // 3. Subscribe to Chat
         dbService.subscribeToChat((msgs) => this.ui.chat.renderMessages(msgs));
@@ -80,14 +98,7 @@ export class GameClient {
             this.players = players;
             this.ui.updateLobbyPlayers(players, this.user.uid);
 
-            // LATE JOIN LOGIC: If we are racing, add new players dynamically
-            if (this.currentState === "racing") {
-                for (const p of Object.values(players)) {
-                    this.engine.addRacer(p); // RaceEngine handles duplicates
-                }
-            }
-
-            // Sync My Config
+            // Sync My Config (This logic remains)
             const me = this.players[this.user.uid];
             if (me && !this.controlsInitialized) {
                 const debouncedUpdate = debounce((cfg) => {
@@ -98,8 +109,22 @@ export class GameClient {
             }
         });
 
-        // 5. Subscribe to World State (The Heartbeat)
+        // 5. Subscribe to World State
         dbService.subscribeToWorld((data) => this.handleWorldUpdate(data));
+
+        // 6. Start Heartbeat [!code ++]
+        this.startHeartbeat();
+    }
+
+    // [!code ++]
+    startHeartbeat() {
+        if (this.heartbeat) clearInterval(this.heartbeat);
+        // Ping every 60 seconds to keep the session alive
+        this.heartbeat = setInterval(() => {
+            if (this.user?.uid) {
+                dbService.ping(this.user.uid);
+            }
+        }, 60000);
     }
 
     handleWorldUpdate(data) {
@@ -121,15 +146,24 @@ export class GameClient {
                 this.lobbyTick(); // Immediate update
             }
         } else if (data.status === "racing") {
-            if (this.currentState !== "racing") {
-                // Stop Timer Loop
-                if (this.lobbyInterval) {
-                    clearInterval(this.lobbyInterval);
-                    this.lobbyInterval = null;
-                }
+            // 1. If we are already racing or spectating, ignore redundant updates
+            if (this.currentState === "racing" || this.currentState === "spectating") return;
 
-                this.startRace(data.seed);
+            // 2. Late Joiner Check: If we load in (unknown state) and the race is ON, we must spectate
+            if (this.currentState === "unknown") {
+                this.currentState = "spectating";
+                this.ui.showPanel("lobby");
+                this.ui.updateLobbyTimer("Race in Progress... (Wait for next round)");
+                this.engine.stop();
+                return;
             }
+
+            // 3. Normal Transition: Lobby -> Racing
+            if (this.lobbyInterval) {
+                clearInterval(this.lobbyInterval);
+                this.lobbyInterval = null;
+            }
+            this.startRace(data.seed);
         }
     }
 
@@ -178,6 +212,10 @@ export class GameClient {
         const myName = this.players[this.user.uid]?.name;
         const myRank = finishOrder.findIndex((d) => d.name === myName);
         this.ui.showResults(finishOrder, this.players, myRank, this.user.uid);
+        if (myRank === 0) {
+            console.log("Champion! Recording win...");
+            dbService.recordWin(this.user.uid, myName);
+        }
 
         // If I am Host, queue the reset
         const playerIds = Object.keys(this.players).sort();

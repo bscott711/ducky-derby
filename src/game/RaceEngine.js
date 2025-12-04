@@ -74,22 +74,19 @@ export class RaceEngine {
 
         // 1. Add Real Players
         for (const p of players) {
-            this.addRacer(p, true);
+            this.addRacer(p);
         }
 
         // 2. Fill with NPCs
         const needed = MIN_RACERS - this.ducks.length;
         for (let i = 0; i < needed; i++) {
             const nameIdx = Math.floor(this.rng() * NPC_NAMES.length);
-            this.addRacer(
-                {
-                    id: `npc-${i}`,
-                    name: `${NPC_NAMES[nameIdx]}`,
-                    config: { body: this.getSeededColor(), beak: this.getSeededColor() },
-                    isNPC: true,
-                },
-                true,
-            );
+            this.addRacer({
+                id: `npc-${i}`,
+                name: `${NPC_NAMES[nameIdx]}`,
+                config: { body: this.getSeededColor(), beak: this.getSeededColor() },
+                isNPC: true,
+            });
         }
 
         // Set Camera Start
@@ -100,13 +97,13 @@ export class RaceEngine {
         this.render();
     }
 
-    // NEW: Adds a single duck (used for setup AND late joiners)
-    addRacer(playerData, isSetup = false) {
+    // Adds a single duck to the race based on initial race setup
+    addRacer(playerData) {
         // Prevent duplicates
         if (this.ducks.find((d) => d.id === playerData.id)) return;
 
         const bridgeY = -200;
-        // FIX: Calculate the river segment index corresponding to the bridge's Y position.
+        // Calculate the river segment index corresponding to the bridge's Y position.
         const segmentIndex = Math.floor((bridgeY + 500) / 5);
         const segment = this.riverPath[segmentIndex] || this.riverPath[0];
         const bridgeCenterX = segment.centerX;
@@ -114,12 +111,11 @@ export class RaceEngine {
         const bridgeWidth = PHYSICS.RIVER_WIDTH + 140;
         const archHeight = 60;
 
-        // Use seeded RNG for setup, random for late joiners (prevents stacking)
-        const rand = isSetup ? this.rng() : Math.random();
+        const rand = this.rng(); // Now always uses seeded RNG for a deterministic starting lineup
 
         const spread = bridgeWidth * 0.6;
         const jitterX = (rand - 0.5) * spread;
-        const startX = bridgeCenterX + jitterX; // Use the corrected center X
+        const startX = bridgeCenterX + jitterX;
         const startZ = archHeight * (1 - (jitterX / (bridgeWidth / 2)) ** 2) + 20;
 
         this.ducks.push({
@@ -168,11 +164,14 @@ export class RaceEngine {
         this.accumulator += dt;
         while (this.accumulator >= this.FIXED_TIME_STEP) {
             this.updateGameLogic();
+            // FIX: Move camera update INSIDE the fixed loop
+            // This locks the camera to the physics, preventing jitter/vibration
+            this.updateCamera();
+
             this.globalTime += this.FIXED_TIME_STEP;
             this.accumulator -= this.FIXED_TIME_STEP;
         }
 
-        this.updateCamera();
         this.render();
 
         if (!this.raceFinished) {
@@ -212,12 +211,24 @@ export class RaceEngine {
     updateCamera() {
         let targetDuck = null;
 
-        // 1. Follow User
-        if (this.followId) {
+        // 1. Priority Check: "Last Place" Mode
+        // We MUST check this before the general 'this.followId' check
+        // because "LAST" is a truthy string.
+        if (this.followId === "LAST") {
+            let minY = Number.POSITIVE_INFINITY;
+            for (const d of this.ducks) {
+                if (d.y < minY) {
+                    minY = d.y;
+                    targetDuck = d;
+                }
+            }
+        }
+        // 2. Follow Specific User (Only if NOT "LAST")
+        else if (this.followId) {
             targetDuck = this.ducks.find((d) => d.id === this.followId);
         }
 
-        // 2. Or Follow Leader
+        // 3. Fallback: Follow Leader (Furthest Ahead)
         if (!targetDuck) {
             let maxY = Number.NEGATIVE_INFINITY;
             for (const d of this.ducks) {
@@ -228,6 +239,7 @@ export class RaceEngine {
             }
         }
 
+        // Apply Camera Movement
         if (targetDuck) {
             const targetCamX = targetDuck.x;
             this.cameraX += (targetCamX - this.cameraX) * 0.02;
@@ -235,6 +247,7 @@ export class RaceEngine {
             const viewOffset = 220;
             let targetCamY = targetDuck.y + viewOffset;
 
+            // Clamp camera at finish line so we don't scroll into the void
             const maxCamY = this.finishLineY + NET_OFFSET - 200;
             if (targetCamY > maxCamY) {
                 targetCamY = maxCamY;
