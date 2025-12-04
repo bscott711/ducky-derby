@@ -20,29 +20,24 @@ Built with **HTML5 Canvas**, **JavaScript Modules**, and **Firebase**, it suppor
 
 ---
 
-## ✨ New Features (v0.3.0)
+## ✨ New Features (v0.4.0)
 
-### 🎥 Spectator Tools & Camera
+### 🏗️ Architectural Overhaul
 
-* **Follow Cam:** Toggle between "Leader" (Spectator Mode) and "Me" (Track your own duck) with the new floating camera button.
-* **Smart Framing:** The camera adjusts vertically based on rank—leaders see the trail of opponents behind them, while those in the back see the pack ahead.
-* **Mobile Optimization:** Full responsive scaling and smooth horizontal tracking ensure the action stays centered on any device.
+* **System-Based Engine:** The core `RaceEngine` has been decoupled into specialized systems (`PhysicsSystem`, `HunterSystem`, `PowerupSystem`) for robust simulation logic.
+* **Modular Rendering:** The monolithic renderer has been split into dedicated painters (`DuckRenderer`, `EntityRenderer`, `EnvironmentRenderer`) for cleaner draw calls and z-indexing.
+* **Procedural Pipelines:** Level generation is now handled by a suite of micro-generators (`RiverGenerator`, `FeatureGenerator`, `ObstacleGenerator`), paving the way for future biome expansions.
 
-### 🔫 The Hunt (PvE)
+### 🔌 Service Layer Extraction
 
-* **Hunters:** Aggressive red dots appear on the riverbanks to snipe passing ducks.
-* **Laser Penalty:** Getting shot triggers the "Hunted" state (💀). Your duck flips upside down and suffers heavy drag for 2 seconds.
+* **Decoupled Backend:** Firebase logic has been moved out of the UI and Game loop into a dedicated Service Layer (`AuthService`, `DatabaseService`), ensuring better separation of concerns and easier testing.
+* **Input Controller:** Input handling is now normalized in a dedicated controller, separating player intent from UI event listeners.
 
-### 🏁 Epic Finishes
+### 💧 Physics & Polish
 
-* **Catch Net:** A physical net past the finish line catches all racers, creating a satisfying end-of-race pile-up.
-* **Bobbing Physics:** Ducks gently bob in the current while stuck against the net.
-* **End-Game Cam:** The camera smoothly decelerates at the finish line to frame the final results.
-
-### 🔧 Engine Overhaul
-
-* **Refactored Core:** Split the monolith `RaceEngine` into dedicated `LevelGenerator`, `Renderer`, and `Physics` modules for better maintainability.
-* **Improved Rendering:** Fixed Z-indexing so ducks properly float *under* bridges and nets.
+* **Net Drifting:** Ducks no longer "freeze" at the finish line; they now physically drift into the catch net and pile up realistically.
+* **Orientation Hysteresis:** Ducks maintain their facing direction during slow movements and spawn with random orientations for a more natural look.
+* **Timestep Fixes:** Corrected frame-rate dependency issues to ensure penalty timers (like being hunted) are consistent across all devices.
 
 ---
 
@@ -71,6 +66,7 @@ Built with **HTML5 Canvas**, **JavaScript Modules**, and **Firebase**, it suppor
 ## 🚀 Future Roadmap
 
 * [x] **Spectator Tools:** "Follow Cam" to click and spectate specific ducks.
+* [x] **Refactor:** Complete modularization of Engine, Renderer, and Services.
 * [ ] **Sound Effects:** Add splashes, quacks, and collision "boings".
 * [ ] **Leaderboards:** Track total wins across session.
 * [ ] **Seasons:** Different biomes (Snow, Lava, Space).
