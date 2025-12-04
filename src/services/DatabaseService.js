@@ -1,13 +1,9 @@
-import { getApp, getApps, initializeApp } from "firebase/app";
-import { getAuth, signInAnonymously } from "firebase/auth";
 import {
     addDoc,
     collection,
     deleteDoc,
     doc,
     getDoc,
-    getFirestore,
-    initializeFirestore,
     limit,
     onSnapshot,
     orderBy,
@@ -15,56 +11,17 @@ import {
     setDoc,
     updateDoc,
 } from "firebase/firestore";
-
-const firebaseConfig = {
-    apiKey: "AIzaSyBM_L6_YUj4jVplAU7LcGiP0cSwuh24D28",
-    authDomain: "ducky-derby.firebaseapp.com",
-    projectId: "ducky-derby",
-    storageBucket: "ducky-derby.firebasestorage.app",
-    messagingSenderId: "898033359128",
-    appId: "1:898033359128:web:06a908dace58009689266d",
-    measurementId: "G-G50XQ0HY6X",
-};
-
-const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-const auth = getAuth(app);
-
-let db;
-try {
-    db = initializeFirestore(app, { experimentalForceLongPolling: false });
-    console.log("🔥 Firebase: Initialized new Firestore instance (WebSockets Enabled)");
-} catch (e) {
-    db = getFirestore(app);
-    console.log("♻️ Firebase: Reusing existing Firestore instance");
-}
+import { db } from "./firebaseConfig.js";
 
 const COLLECTION_PATH = "races";
 
-export const authService = {
-    async signIn() {
-        try {
-            return await signInAnonymously(auth);
-        } catch (error) {
-            console.error("Authentication failed:", error);
-            throw error;
-        }
-    },
-    getCurrentUser() {
-        return auth.currentUser;
-    },
-    onAuthStateChanged(callback) {
-        return auth.onAuthStateChanged(callback);
-    },
-};
-
-export const dbService = {
+export class DatabaseService {
     subscribeToPublicRooms(callback) {
         const racesCollection = collection(db, COLLECTION_PATH);
         return onSnapshot(racesCollection, (snapshot) => {
             const rooms = [];
             for (const doc of snapshot.docs) {
                 const data = doc.data();
-                // FIX: Show both Lobby AND Racing rooms so they don't "disappear"
                 if (
                     data.isPublic === true &&
                     (data.status === "lobby" || data.status === "racing")
@@ -74,7 +31,7 @@ export const dbService = {
             }
             callback(rooms);
         });
-    },
+    }
 
     async createRoom(hostId, hostName, isPublic, duckConfig) {
         const roomId = Math.random().toString(36).substring(2, 6).toUpperCase();
@@ -95,7 +52,7 @@ export const dbService = {
         };
         await setDoc(raceRef, initialData);
         return roomId;
-    },
+    }
 
     async joinRoom(roomId, userId, userName, duckConfig) {
         const raceRef = doc(db, COLLECTION_PATH, roomId);
@@ -115,12 +72,12 @@ export const dbService = {
         }
         await updateDoc(raceRef, { players });
         return data.hostId;
-    },
+    }
 
     async deleteRoom(roomId) {
         const raceRef = doc(db, COLLECTION_PATH, roomId);
         await deleteDoc(raceRef);
-    },
+    }
 
     subscribeToRoom(roomId, callback) {
         const raceRef = doc(db, COLLECTION_PATH, roomId);
@@ -131,7 +88,7 @@ export const dbService = {
                 callback(null);
             }
         });
-    },
+    }
 
     async updatePlayerConfig(roomId, userId, duckConfig, currentPlayers) {
         const raceRef = doc(db, COLLECTION_PATH, roomId);
@@ -141,17 +98,17 @@ export const dbService = {
             players[userId].config = duckConfig;
             await updateDoc(raceRef, { players });
         }
-    },
+    }
 
     async startRace(roomId, seedVal) {
         const raceRef = doc(db, COLLECTION_PATH, roomId);
         await updateDoc(raceRef, { status: "racing", seed: seedVal });
-    },
+    }
 
     async resetLobby(roomId) {
         const raceRef = doc(db, COLLECTION_PATH, roomId);
         await updateDoc(raceRef, { status: "lobby" });
-    },
+    }
 
     async sendChatMessage(roomId, userId, userName, text) {
         const chatRef = collection(db, COLLECTION_PATH, roomId, "messages");
@@ -161,7 +118,7 @@ export const dbService = {
             text,
             timestamp: Date.now(),
         });
-    },
+    }
 
     subscribeToChat(roomId, callback) {
         const chatRef = collection(db, COLLECTION_PATH, roomId, "messages");
@@ -170,5 +127,5 @@ export const dbService = {
             const messages = snapshot.docs.map((doc) => doc.data());
             callback(messages);
         });
-    },
-};
+    }
+}

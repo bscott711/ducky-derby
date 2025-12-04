@@ -1,4 +1,4 @@
-import { authService, dbService } from "../services/firebase.js";
+import { authService, dbService } from "../services/index.js";
 import { debounce, getRandomDuckConfig } from "../utils/helpers.js";
 import { RaceEngine } from "./RaceEngine.js";
 
