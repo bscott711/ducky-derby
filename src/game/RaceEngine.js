@@ -31,8 +31,6 @@ export class RaceEngine {
         this.followId = null;
         this.postRaceTimer = 0;
 
-        this.inputs = { left: false, right: false };
-
         this.accumulator = 0;
         this.lastTime = 0;
         this.FIXED_TIME_STEP = 1 / 60;
@@ -45,11 +43,6 @@ export class RaceEngine {
 
     setFollowId(id) {
         this.followId = id;
-    }
-
-    setInput(type, isPressed) {
-        if (type === "left") this.inputs.left = isPressed;
-        if (type === "right") this.inputs.right = isPressed;
     }
 
     setup(seedVal, players) {
@@ -115,9 +108,9 @@ export class RaceEngine {
         for (const p of racerList) {
             const spread = bridgeWidth * 0.6;
             const jitterX = (this.rng() - 0.5) * spread;
-            const normX = jitterX / (bridgeWidth / 2);
-            const heightOnArch = archHeight * (1 - normX * normX);
-            const startZ = heightOnArch + 20 + this.rng() * 10;
+            // No user controls means no bias needed for spawn, just random distribution
+            const startZ =
+                archHeight * (1 - (jitterX / (bridgeWidth / 2)) ** 2) + 20 + this.rng() * 10;
             const startX = segment.centerX;
 
             this.ducks.push({
@@ -139,7 +132,6 @@ export class RaceEngine {
                 effect: null,
                 effectTimer: 0,
                 originalRadius: PHYSICS.DUCK_RADIUS,
-                // FIX: Initialize random facing so they don't snap to left/right on spawn
                 facingRight: this.rng() > 0.5,
             });
         }
@@ -180,8 +172,6 @@ export class RaceEngine {
     }
 
     updateGameLogic() {
-        // FIX: Use 1.0 (one frame step) instead of dt.
-        // This ensures cooldowns (like 120 frames) count down correctly.
         const timeScale = 1.0;
 
         // 1. Update Sub-Systems
@@ -195,9 +185,7 @@ export class RaceEngine {
             rapids: this.rapids,
             whirlpools: this.whirlpools,
             obstacles: this.obstacles,
-            inputs: this.inputs,
             finishLineY: this.finishLineY,
-            followId: this.followId,
         });
 
         // 3. Race Completion Check

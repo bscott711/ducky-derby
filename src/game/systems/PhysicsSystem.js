@@ -6,8 +6,7 @@ export class PhysicsSystem {
     }
 
     update(timeScale, state) {
-        const { ducks, riverPath, rapids, whirlpools, obstacles, inputs, finishLineY, followId } =
-            state;
+        const { ducks, riverPath, rapids, whirlpools, obstacles, finishLineY } = state;
 
         const netY = finishLineY + NET_OFFSET;
 
@@ -17,12 +16,6 @@ export class PhysicsSystem {
             if (duck.z > 0) {
                 this.handleAirbornePhysics(duck, timeScale);
                 continue;
-            }
-
-            // Steering
-            if (followId && duck.id === followId && !duck.finished) {
-                if (inputs.left) duck.vx -= PHYSICS.STEER_FORCE;
-                if (inputs.right) duck.vx += PHYSICS.STEER_FORCE;
             }
 
             // Cooldowns
@@ -52,7 +45,6 @@ export class PhysicsSystem {
 
         // 3. Environment
         for (const duck of ducks) {
-            // FIX: Removed '|| duck.finished' so they stay in bounds after finish line
             if (duck.z > 0) continue;
 
             this.resolveWallCollision(duck, riverPath);
@@ -175,8 +167,7 @@ export class PhysicsSystem {
         duck.x += duck.vx * timeScale;
         duck.y += duck.vy * timeScale;
 
-        // FIX: Update facing direction only when moving fast enough (Hysteresis)
-        // This preserves the initial random direction until they actually move.
+        // Facing Logic (Visuals only)
         if (Math.abs(duck.vx) > 0.1) {
             duck.facingRight = duck.vx > 0;
         }
@@ -227,7 +218,6 @@ export class PhysicsSystem {
 
     resolveWallCollision(duck, riverPath) {
         const segmentIndex = Math.floor((duck.y + 500) / 5);
-        // Fallback to last segment if we are past the finish line
         const segment = riverPath[segmentIndex] || riverPath[riverPath.length - 1];
         if (!segment) return;
 

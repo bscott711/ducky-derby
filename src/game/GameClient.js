@@ -12,9 +12,8 @@ export class GameClient {
         this.room = null;
         this.isHost = false;
         this.players = {};
-        this.raceStatus = "lobby"; // lobby, racing, finished
+        this.raceStatus = "lobby";
 
-        // Subscriptions
         this.chatUnsub = null;
         this.roomUnsub = null;
         this.controlsInitialized = false;
@@ -23,10 +22,8 @@ export class GameClient {
     }
 
     init() {
-        // 1. Setup UI Listeners that don't depend on room state
         this.setupGlobalListeners();
 
-        // 2. Setup Auth Listener
         authService.onAuthStateChanged((user) => {
             if (user) {
                 this.user = user;
@@ -48,12 +45,7 @@ export class GameClient {
             return "Me";
         });
 
-        // Input Handling
-        this.ui.setupInputListeners((type, isPressed) => {
-            this.engine.setInput(type, isPressed);
-        });
-
-        // Main Menu Buttons
+        // DOM Event Listeners
         document
             .getElementById("create-room-btn")
             .addEventListener("click", () => this.handleCreateRoom());
@@ -72,7 +64,6 @@ export class GameClient {
     }
 
     onAuthSuccess() {
-        // Subscribe to public room list
         dbService.subscribeToPublicRooms((rooms) => {
             if (!this.room) {
                 this.ui.updateRoomList(rooms, (id) => this.handleJoinRoom(id));
@@ -130,12 +121,10 @@ export class GameClient {
         this.isHost = isHost;
         this.raceStatus = "lobby";
 
-        // UI Setup
         this.ui.showPanel("lobby");
         document.getElementById("lobby-code-display").textContent = roomId;
         document.getElementById("room-code-header").textContent = `ROOM: ${roomId}`;
 
-        // Host Controls Visibility
         const hostMsg = document.getElementById("host-msg");
         const startBtn = document.getElementById("start-race-btn");
         const deleteBtn = document.getElementById("delete-room-btn");
@@ -154,22 +143,19 @@ export class GameClient {
             waitMsg.classList.remove("hidden");
         }
 
-        // Setup Player Config Updater
         const debouncedUpdate = debounce((newConfig) => {
             dbService.updatePlayerConfig(roomId, this.user.uid, newConfig, this.players);
         }, 300);
 
-        // Chat
         if (this.chatUnsub) this.chatUnsub();
         this.chatUnsub = dbService.subscribeToChat(roomId, (msgs) => {
-            this.ui.renderChatMessages(msgs);
+            this.ui.chat.renderMessages(msgs);
         });
-        this.ui.setupChatListeners((text) => {
+        this.ui.chat.setupSendListener((text) => {
             const myName = this.players[this.user.uid]?.name || "Anon";
             dbService.sendChatMessage(roomId, this.user.uid, myName, text);
         });
 
-        // Room Subscription
         if (this.roomUnsub) this.roomUnsub();
         this.roomUnsub = dbService.subscribeToRoom(roomId, (data) => this.onRoomDataUpdate(data));
     }
@@ -184,7 +170,6 @@ export class GameClient {
         this.players = data.players || {};
         this.ui.updateLobbyPlayers(this.players, this.user.uid);
 
-        // Init Customization UI only once to prevent overwriting user input while typing/picking
         const me = this.players[this.user.uid];
         if (me?.config && !this.controlsInitialized) {
             const debouncedUpdate = debounce((newConfig) => {
@@ -195,7 +180,6 @@ export class GameClient {
             this.controlsInitialized = true;
         }
 
-        // State Machine Transitions
         if (data.status === "racing" && this.raceStatus === "lobby") {
             console.log("Rx Race Signal. Seed:", data.seed);
             this.beginRaceSequence(data.seed || 123456);
@@ -223,14 +207,10 @@ export class GameClient {
             ...data,
         }));
 
-        // 1. Setup Engine
         this.engine.setup(seed, realPlayers);
-
-        // 2. Reset Camera to Leader for cinematic start
         this.engine.setFollowId(null);
         this.ui.camBtn.textContent = "🎥 Camera: Leader";
 
-        // 3. Countdown -> Run
         this.ui.runCountdown(() => {
             this.engine.run((finishOrder) => this.onRaceFinish(finishOrder));
         });
@@ -240,7 +220,6 @@ export class GameClient {
         this.raceStatus = "finished";
         console.log("Race Finished", finishOrder);
 
-        // Delay for dramatic effect before showing results
         setTimeout(() => {
             this.ui.showPanel("results");
             const myName = this.players[this.user.uid]?.name;
@@ -267,8 +246,6 @@ export class GameClient {
     returnToLobbyState() {
         this.raceStatus = "lobby";
         this.ui.showPanel("lobby");
-        // Engine is not explicitly stopped here as setup() will reset it next time,
-        // but stopping the loop is good practice.
         this.engine.stop();
     }
 
