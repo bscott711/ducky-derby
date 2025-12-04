@@ -103,20 +103,20 @@ export class RaceEngine {
     // NEW: Adds a single duck (used for setup AND late joiners)
     addRacer(playerData, isSetup = false) {
         // Prevent duplicates
-        if (this.ducks.find(d => d.id === playerData.id)) return;
+        if (this.ducks.find((d) => d.id === playerData.id)) return;
 
         const bridgeY = -200;
         // FIX: Calculate the river segment index corresponding to the bridge's Y position.
         const segmentIndex = Math.floor((bridgeY + 500) / 5);
         const segment = this.riverPath[segmentIndex] || this.riverPath[0];
-        const bridgeCenterX = segment.centerX; 
-        
+        const bridgeCenterX = segment.centerX;
+
         const bridgeWidth = PHYSICS.RIVER_WIDTH + 140;
         const archHeight = 60;
-        
+
         // Use seeded RNG for setup, random for late joiners (prevents stacking)
         const rand = isSetup ? this.rng() : Math.random();
-        
+
         const spread = bridgeWidth * 0.6;
         const jitterX = (rand - 0.5) * spread;
         const startX = bridgeCenterX + jitterX; // Use the corrected center X
