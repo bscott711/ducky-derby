@@ -11,6 +11,7 @@ export class UIManager {
 
         this.gameUI = document.getElementById("game-ui");
         this.playerListEl = document.getElementById("lobby-player-list");
+        this.leaderboardEl = document.getElementById("leaderboard-container");
 
         // New Global Lobby Elements
         this.lobbyTimerEl = document.getElementById("lobby-timer");
@@ -29,6 +30,35 @@ export class UIManager {
         this.camBtn.className = "floating-cam-btn hidden";
         this.camBtn.textContent = "🎥 Camera: Auto";
         document.body.appendChild(this.camBtn);
+    }
+    updateLeaderboard(entries) {
+        if (!this.leaderboardEl) return;
+
+        let html = '<div class="lb-header">🏆 All-Time Champions</div>';
+
+        if (entries.length === 0) {
+            html +=
+                '<div style="color:#888; font-style:italic;">No winners yet. Be the first!</div>';
+        } else {
+            let rank = 1;
+            for (const entry of entries) {
+                // Highlight top 3 with emojis
+                let icon = `#${rank}`;
+                if (rank === 1) icon = "🥇";
+                if (rank === 2) icon = "🥈";
+                if (rank === 3) icon = "🥉";
+
+                html += `
+                    <div class="lb-row">
+                        <span class="lb-rank">${icon}</span>
+                        <span class="lb-name">${entry.name}</span>
+                        <span class="lb-wins">${entry.wins} Wins</span>
+                    </div>
+                `;
+                rank++;
+            }
+        }
+        this.leaderboardEl.innerHTML = html;
     }
 
     showPanel(panelName) {

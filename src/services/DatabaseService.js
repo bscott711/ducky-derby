@@ -3,6 +3,7 @@ import {
     deleteDoc,
     doc,
     getDocs,
+    increment,
     limit,
     onSnapshot,
     orderBy,
@@ -17,8 +18,36 @@ import { db } from "./firebaseConfig.js";
 
 const WORLD_DOC = `world/${ENVIRONMENT}`;
 const PLAYERS_COLLECTION = `world/${ENVIRONMENT}/players`;
+const LEADERBOARD_COLLECTION = `world/${ENVIRONMENT}/leaderboard`;
 
 export class DatabaseService {
+    // --- Leaderboard ---
+
+    async recordWin(userId, userName) {
+        const docRef = doc(db, LEADERBOARD_COLLECTION, userId);
+        // Atomic increment ensures accuracy even if multiple people win different races simultaneously
+        await setDoc(
+            docRef,
+            {
+                name: userName,
+                wins: increment(1),
+                lastUpdate: serverTimestamp(),
+            },
+            { merge: true },
+        );
+    }
+
+    subscribeToLeaderboard(callback) {
+        const q = query(collection(db, LEADERBOARD_COLLECTION), orderBy("wins", "desc"), limit(5));
+        return onSnapshot(q, (snapshot) => {
+            const data = [];
+            for (const doc of snapshot.docs) {
+                data.push(doc.data());
+            }
+            callback(data);
+        });
+    }
+
     // --- Player Management ---
 
     async joinWorld(userId, userName, duckConfig) {

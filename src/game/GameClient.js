@@ -79,6 +79,9 @@ export class GameClient {
 
         // 2. Init UI
         this.ui.showPanel("lobby");
+        dbService.subscribeToLeaderboard((data) => {
+            this.ui.updateLeaderboard(data);
+        });
 
         // 3. Subscribe to Chat
         dbService.subscribeToChat((msgs) => this.ui.chat.renderMessages(msgs));
@@ -192,6 +195,10 @@ export class GameClient {
         const myName = this.players[this.user.uid]?.name;
         const myRank = finishOrder.findIndex((d) => d.name === myName);
         this.ui.showResults(finishOrder, this.players, myRank, this.user.uid);
+        if (myRank === 0) {
+            console.log("Champion! Recording win...");
+            dbService.recordWin(this.user.uid, myName);
+        }
 
         // If I am Host, queue the reset
         const playerIds = Object.keys(this.players).sort();

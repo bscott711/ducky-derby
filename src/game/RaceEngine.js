@@ -164,11 +164,14 @@ export class RaceEngine {
         this.accumulator += dt;
         while (this.accumulator >= this.FIXED_TIME_STEP) {
             this.updateGameLogic();
+            // FIX: Move camera update INSIDE the fixed loop
+            // This locks the camera to the physics, preventing jitter/vibration
+            this.updateCamera(); 
+            
             this.globalTime += this.FIXED_TIME_STEP;
             this.accumulator -= this.FIXED_TIME_STEP;
         }
 
-        this.updateCamera();
         this.render();
 
         if (!this.raceFinished) {
