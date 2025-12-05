@@ -88,6 +88,12 @@ export class DatabaseService {
         this.cleanupOldPlayers();
     }
 
+    async leaveWorld(userId) {
+        const playerRef = doc(db, PLAYERS_COLLECTION, userId);
+        // Fire and forget - best effort delete
+        deleteDoc(playerRef).catch((err) => console.error("Exit failed", err));
+    }
+
     async setRaceStatus(status) {
         const worldRef = doc(db, WORLD_DOC);
         await updateDoc(worldRef, { status });
