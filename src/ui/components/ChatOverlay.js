@@ -5,6 +5,10 @@ export class ChatOverlay {
         this.inputEl = document.getElementById("chat-input");
         this.sendBtn = document.getElementById("send-chat-btn");
         this.toggleBtn = document.getElementById("chat-toggle-btn");
+
+        // [!code ++] Clear Button
+        this.clearBtn = document.getElementById("chat-clear-local-btn");
+
         this.header = document.querySelector(".chat-header");
 
         this.initListeners();
@@ -19,6 +23,11 @@ export class ChatOverlay {
 
         if (this.toggleBtn) this.toggleBtn.onclick = toggle;
         if (this.header) this.header.onclick = toggle;
+
+        // [!code ++] Manual Clear Listener
+        if (this.clearBtn) {
+            this.clearBtn.onclick = () => this.clearMessages();
+        }
     }
 
     setupSendListener(onSend) {
@@ -44,6 +53,11 @@ export class ChatOverlay {
             this.messagesEl.appendChild(el);
         }
         this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
+    }
+
+    // [!code ++] Clear UI method
+    clearMessages() {
+        this.messagesEl.innerHTML = "";
     }
 
     setVisible(visible) {

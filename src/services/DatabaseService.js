@@ -67,25 +67,48 @@ export class DatabaseService {
             if (snap.exists()) {
                 callback(snap.data());
             } else {
-                // Initialize world if it doesn't exist
-                this.resetWorldState();
+                // Initialize world if it doesn't exist (Force chat clear on init)
+                this.resetWorldState(true);
             }
         });
     }
 
-    async resetWorldState() {
+    /**
+     * Resets the game to the Lobby state.
+     * @param {boolean} clearChat - If true, generates a new chatId to wipe the chat.
+     * If false, preserves the existing chat room.
+     */
+    async resetWorldState(clearChat = false) {
         const worldRef = doc(db, WORLD_DOC);
         // Default: 15 second intermission
         const nextRace = Date.now() + 15000;
 
-        await setDoc(worldRef, {
+        const updateData = {
             status: "lobby",
             startTime: nextRace,
             seed: Math.floor(Math.random() * 1000000),
-        });
+        };
+
+        // Only generate a new Chat ID (clearing the chat) if requested
+        if (clearChat) {
+            updateData.chatId = Date.now().toString();
+        }
+
+        // Use merge: true so we don't lose the chatId if we aren't updating it
+        await setDoc(worldRef, updateData, { merge: true });
 
         // Cleanup: Remove players who haven't updated in 1 hour
         this.cleanupOldPlayers();
+    }
+
+    // Admin: Force Stop (Treat as a reset/new session -> Clear Chat)
+    async adminForceStop() {
+        const worldRef = doc(db, WORLD_DOC);
+        // Reset to lobby, clear chat, but maybe set a longer timer or just let the loop handle it
+        await updateDoc(worldRef, {
+            status: "lobby",
+            chatId: Date.now().toString(), // Clear chat on force stop
+        });
     }
 
     async leaveWorld(userId) {
@@ -136,8 +159,9 @@ export class DatabaseService {
 
     // --- Chat ---
 
-    async sendChatMessage(userId, userName, text) {
-        const chatRef = collection(db, `world/${ENVIRONMENT}/messages`);
+    async sendChatMessage(chatId, userId, userName, text) {
+        if (!chatId) return;
+        const chatRef = collection(db, `world/${ENVIRONMENT}/chats/${chatId}/messages`);
         await setDoc(doc(chatRef), {
             userId,
             userName,
@@ -146,8 +170,9 @@ export class DatabaseService {
         });
     }
 
-    subscribeToChat(callback) {
-        const chatRef = collection(db, `world/${ENVIRONMENT}/messages`);
+    subscribeToChat(chatId, callback) {
+        if (!chatId) return null;
+        const chatRef = collection(db, `world/${ENVIRONMENT}/chats/${chatId}/messages`);
         const q = query(chatRef, orderBy("timestamp", "desc"), limit(50));
         return onSnapshot(q, (snapshot) => {
             const messages = snapshot.docs.map((doc) => doc.data()).reverse();

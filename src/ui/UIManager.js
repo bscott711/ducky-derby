@@ -7,6 +7,7 @@ export class UIManager {
             start: document.getElementById("start-panel"),
             lobby: document.getElementById("lobby-panel"),
             results: document.getElementById("results-panel"),
+            admin: document.getElementById("admin-panel"), // [!code ++]
         };
 
         this.gameUI = document.getElementById("game-ui");
@@ -30,7 +31,36 @@ export class UIManager {
         this.camBtn.className = "floating-cam-btn hidden";
         this.camBtn.textContent = "🎥 Camera: Auto";
         document.body.appendChild(this.camBtn);
+
+        // [!code ++] Admin UI Init
+        this.initAdminUI();
     }
+
+    // [!code ++] Admin UI Setup
+    initAdminUI() {
+        const toggleBtn = document.getElementById("admin-toggle-btn");
+        const closeBtn = document.getElementById("admin-close-btn");
+
+        if (toggleBtn) {
+            toggleBtn.onclick = () => {
+                this.panels.admin.classList.toggle("hidden");
+            };
+        }
+        if (closeBtn) {
+            closeBtn.onclick = () => {
+                this.panels.admin.classList.add("hidden");
+            };
+        }
+    }
+
+    setupAdminControls(onStop, onRestart) {
+        const stopBtn = document.getElementById("admin-stop-btn");
+        const restartBtn = document.getElementById("admin-restart-btn");
+
+        if (stopBtn) stopBtn.onclick = onStop;
+        if (restartBtn) restartBtn.onclick = onRestart;
+    }
+
     updateLeaderboard(entries) {
         if (!this.leaderboardEl) return;
 
@@ -62,8 +92,9 @@ export class UIManager {
     }
 
     showPanel(panelName) {
-        for (const el of Object.values(this.panels)) {
-            el.classList.add("hidden");
+        for (const [name, el] of Object.entries(this.panels)) {
+            // [!code ++] Don't hide admin panel when switching other states
+            if (name !== "admin") el.classList.add("hidden");
         }
         this.camBtn.classList.add("hidden");
 
@@ -171,7 +202,7 @@ export class UIManager {
         const msgEl = document.getElementById("result-message");
 
         if (myRank === 0) {
-            titleEl.textContent = "You Won! 👑";
+            titleEl.textContent = "You Won! 🏆";
             titleEl.style.color = "#2ecc71";
             msgEl.textContent = "Your duck is the champion!";
         } else {

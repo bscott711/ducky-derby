@@ -25,6 +25,7 @@
         <div id="chat-content-wrapper">
             <div id="chat-messages"></div>
             <div class="chat-input-row">
+                <button id="chat-clear-local-btn" title="Clear my chat view" style="padding: 0 8px; background: #999;">🧹</button>
                 <input type="text" id="chat-input" placeholder="Say something..." maxlength="100">
                 <button id="send-chat-btn">Send</button>
             </div>
@@ -32,6 +33,18 @@
     </div>
 
     <div id="game-ui">
+        <div style="position: absolute; top: 10px; left: 10px; z-index: 2000;">
+            <button id="admin-toggle-btn" class="join-small-btn" style="background: #333;">Admin</button>
+        </div>
+
+        <div class="panel hidden" id="admin-panel" style="border-color: red; background: #fff0f0;">
+            <h2 style="color: red;">⚠️ Admin Controls</h2>
+            <p>Manage the global race state.</p>
+            <button class="action-btn" id="admin-stop-btn" style="background: #e74c3c;">Force Stop Race</button>
+            <button class="action-btn" id="admin-restart-btn" style="background: #e67e22;">Restart & Clear Chat</button>
+            <button class="join-small-btn" id="admin-close-btn" style="margin-top: 10px; background: #555;">Close</button>
+        </div>
+
         <div class="panel" id="start-panel">
             <h1>🦆 Ducky Derby 🦆</h1>
             <p>Global Multiplayer River</p>

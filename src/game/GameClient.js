@@ -22,11 +22,15 @@ export class GameClient {
         // Keep-Alive
         this.heartbeat = null;
 
+        // Chat State
+        this.currentChatId = null;
+        this.chatUnsubscribe = null;
+
         this.init();
     }
 
     init() {
-        // [!code ++] EXIT SIGNAL: Immediately remove player on tab close
+        // EXIT SIGNAL: Immediately remove player on tab close
         window.addEventListener("beforeunload", () => {
             if (this.user?.uid) {
                 dbService.leaveWorld(this.user.uid);
@@ -52,6 +56,12 @@ export class GameClient {
             return "Me";
         });
 
+        // Setup Admin Buttons
+        this.ui.setupAdminControls(
+            () => this.onAdminStop(),
+            () => this.onAdminRestart(),
+        );
+
         authService.onAuthStateChanged((user) => {
             if (user) {
                 this.user = user;
@@ -62,9 +72,6 @@ export class GameClient {
         });
     }
 
-    // ... [Keep onAuthSuccess, joinWorld, startHeartbeat, handleWorldUpdate unchanged] ...
-
-    // [!code ++] Re-paste these to ensure context, but they remain largely the same until lobbyTick
     onAuthSuccess() {
         // Bind Start Button
         const joinBtn = document.getElementById("join-world-btn");
@@ -85,10 +92,13 @@ export class GameClient {
 
         this.ui.showPanel("lobby");
         dbService.subscribeToLeaderboard((data) => this.ui.updateLeaderboard(data));
-        dbService.subscribeToChat((msgs) => this.ui.chat.renderMessages(msgs));
+
+        // Chat subscription is now handled in handleWorldUpdate
         this.ui.chat.setupSendListener((text) => {
             const myName = this.players[this.user.uid]?.name || "Anon";
-            dbService.sendChatMessage(this.user.uid, myName, text);
+            if (this.currentChatId) {
+                dbService.sendChatMessage(this.currentChatId, this.user.uid, myName, text);
+            }
         });
 
         dbService.subscribeToPlayers((players) => {
@@ -119,6 +129,18 @@ export class GameClient {
     handleWorldUpdate(data) {
         this.worldState = data;
 
+        // Chat Management: Detect Reset
+        if (data.chatId && data.chatId !== this.currentChatId) {
+            this.currentChatId = data.chatId;
+            // Clear local UI
+            this.ui.chat.clearMessages();
+            // Re-subscribe to new chat room
+            if (this.chatUnsubscribe) this.chatUnsubscribe();
+            this.chatUnsubscribe = dbService.subscribeToChat(this.currentChatId, (msgs) => {
+                this.ui.chat.renderMessages(msgs);
+            });
+        }
+
         if (data.status === "lobby") {
             if (this.currentState !== "lobby") {
                 this.currentState = "lobby";
@@ -139,7 +161,6 @@ export class GameClient {
                 this.ui.updateLobbyTimer("Race in Progress... (Wait for next round)");
                 this.engine.stop();
 
-                // [!code ++] Even spectators should check if the race is stuck!
                 this.lobbyTick();
                 return;
             }
@@ -153,12 +174,10 @@ export class GameClient {
     }
 
     lobbyTick() {
-        // [!code ++] Allow ticking even if not in lobby (for Host Stale Check)
         if (!this.worldState) return;
 
         const now = Date.now();
 
-        // Only update UI if we are actually in the lobby
         if (this.currentState === "lobby") {
             const remaining = Math.max(0, Math.ceil((this.worldState.startTime - now) / 1000));
             this.ui.updateLobbyTimer(`Next Race: ${remaining}s`);
@@ -180,17 +199,14 @@ export class GameClient {
                 dbService.setRaceStatus("racing");
             }
 
-            // [!code ++] Case 2: STALE RACE RECOVERY
-            // If the world says "racing" but it's been more than 60 seconds since start time,
-            // assume the previous host crashed and FORCE RESET.
+            // Case 2: STALE RACE RECOVERY
             if (this.worldState.status === "racing" && now - this.worldState.startTime > 60000) {
                 console.warn("HOST: Detected stale race (>60s). Forcing reset.");
-                dbService.resetWorldState();
+                dbService.resetWorldState(true); // Force clear on stale reset
             }
         }
     }
 
-    // ... [Keep startRace and onLocalRaceFinish unchanged] ...
     startRace(seed) {
         this.currentState = "racing";
         this.ui.showPanel("game");
@@ -218,8 +234,21 @@ export class GameClient {
 
         if (isHost) {
             setTimeout(() => {
-                dbService.resetWorldState();
+                // [!code focus] FALSE = Do NOT clear chat for normal race loops
+                dbService.resetWorldState(false);
             }, 8000);
         }
+    }
+
+    // Admin Actions
+    onAdminStop() {
+        console.log("ADMIN: Force stopping race...");
+        dbService.adminForceStop();
+    }
+
+    onAdminRestart() {
+        console.log("ADMIN: Restarting world...");
+        // [!code focus] TRUE = Force CLEAR chat on manual restart
+        dbService.resetWorldState(true);
     }
 }
